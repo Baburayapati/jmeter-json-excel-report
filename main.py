@@ -320,6 +320,7 @@ def track_metric_values(df: pd.DataFrame, track: str, metric: str) -> List[Any]:
 
 
 
+
 def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str]) -> List[List[Any]]:
     prepared = [prepare_api_df_for_track(path) for path in json_paths]
     all_tracks = sorted(
@@ -347,9 +348,7 @@ def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str
         }
         col = metric_to_col[metric]
 
-        # Use AskAI buckets only when all tracks in the section are AskAI.
         is_askai_section = all(str(track).upper().startswith("ASKAI") for track in tracks)
-
         values = pd.to_numeric(g[col], errors="coerce").dropna()
         if values.empty:
             return ["", "", "", "", ""]
@@ -375,6 +374,14 @@ def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str
             header_row += bucket_headers + ["Max Seconds", ""]
         matrix.append(header_row)
 
+        # Total rows are placed immediately below the header so they are easy to find.
+        for metric in ["Avg", "Min", "Max"]:
+            row = ["Total" if metric == "Avg" else "", metric]
+            for df in prepared:
+                row += metric_values_for_tracks(df, tracks, metric)
+                row += [""]
+            matrix.append(row)
+
         for track in tracks:
             for metric in ["Avg", "Min", "Max"]:
                 row = [track if metric == "Avg" else "", metric]
@@ -382,14 +389,6 @@ def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str
                     row += track_metric_values(df, track, metric)
                     row += [""]
                 matrix.append(row)
-
-        # Total rows per section.
-        for metric in ["Avg", "Min", "Max"]:
-            row = ["Total" if metric == "Avg" else "", metric]
-            for df in prepared:
-                row += metric_values_for_tracks(df, tracks, metric)
-                row += [""]
-            matrix.append(row)
 
         matrix.append([""] * section_width)
 
@@ -978,14 +977,14 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     cats = Reference(ws, min_col=1, min_row=slow_start + 1, max_row=slow_start + len(top_slow))
     slow_chart.add_data(data, titles_from_data=True)
     slow_chart.set_categories(cats)
-    slow_chart.height = 8
+    slow_chart.height = 7
     slow_chart.width = 17
     ws.add_chart(slow_chart, "G29")
 
     # Top error API table using rank labels.
-    err_start = 49
-    ws["A48"] = "Top 10 Error APIs"
-    ws["A48"].font = Font(size=14, bold=True, color="A61B1B")
+    err_start = 54
+    ws["A53"] = "Top 10 Error APIs"
+    ws["A53"].font = Font(size=14, bold=True, color="A61B1B")
     err_headers = ["Rank", "Error Count", "Feature", "Scenario", "Endpoint"]
     for idx, header in enumerate(err_headers, start=1):
         ws.cell(row=err_start, column=idx, value=header)
@@ -1021,9 +1020,9 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     cats = Reference(ws, min_col=1, min_row=err_start + 1, max_row=err_start + chart_error_rows)
     err_chart.add_data(data, titles_from_data=True)
     err_chart.set_categories(cats)
-    err_chart.height = 8
+    err_chart.height = 7
     err_chart.width = 17
-    ws.add_chart(err_chart, "G49")
+    ws.add_chart(err_chart, "G54")
 
     # Track-wise slow summary removed from Insights for readability.
 
