@@ -7,6 +7,7 @@ import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl.chart import BarChart, PieChart, Reference
+from openpyxl.chart.label import DataLabelList
 from openpyxl.utils import get_column_letter
 
 
@@ -558,251 +559,268 @@ def style_sheet(ws):
                     cell.fill = PatternFill("solid", fgColor="C6EFCE")
                     cell.font = Font(color="006100", bold=True)
 
-    # Highlight Max Seconds columns in Track_Comparison.
-    if ws.title == "Track_Comparison":
-        for col in range(1, ws.max_column + 1):
-            if ws.cell(row=2, column=col).value == "Max Seconds":
-                for row in range(3, ws.max_row + 1):
-                    ws.cell(row=row, column=col).fill = PatternFill("solid", fgColor="F4B6C2")
-                    ws.cell(row=row, column=col).font = Font(color="9C0006", bold=True)
+
 
 
 def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     ws.title = "Insights"
-    ws["A1"] = "JMeter Performance Insights"
-    ws["A1"].font = Font(size=18, bold=True, color="1F4E78")
-    ws.merge_cells("A1:F1")
 
-    apis_df = frames["APIs"]
-    errors_df = frames["Errors"]
-    tx_df = frames["Transactions"]
+    apis_df = frames["APIs"].copy()
+    errors_df = frames["Errors"].copy()
+    tx_df = frames["Transactions"].copy()
+
+    # Remove non-business rows from dashboard calculations.
+    if not apis_df.empty and "Feature" in apis_df.columns:
+        apis_df = apis_df[
+            (apis_df["Feature"].astype(str).str.strip().str.lower() != "total")
+            & (~apis_df["Feature"].astype(str).str.lower().str.contains("select customer", na=False))
+        ].copy()
 
     total_apis = len(apis_df)
     total_tx = len(tx_df)
-    total_error_count = (
-        int(pd.to_numeric(errors_df.get("errorCount", 0), errors="coerce").fillna(0).sum()) if not errors_df.empty else 0
-    )
+    total_samples = int(pd.to_numeric(apis_df.get("sampleCount", 0), errors="coerce").fillna(0).sum()) if not apis_df.empty else 0
+    total_error_count = int(pd.to_numeric(apis_df.get("errorCount", 0), errors="coerce").fillna(0).sum()) if not apis_df.empty else 0
+
     if not apis_df.empty:
         sla_sec_series = apis_df["Feature"].astype(str).str.upper().str.startswith("ASKAI").map({True: 10, False: 2})
         avg_sec_series = pd.to_numeric(apis_df.get("Avg ResTime in sec", 0), errors="coerce").fillna(0)
         sla_pass = int((avg_sec_series < sla_sec_series).sum())
         sla_fail = int((avg_sec_series >= sla_sec_series).sum())
+        avg_resp = round(float(avg_sec_series.mean()), 3)
+        p95_avg = round(float(pd.to_numeric(apis_df.get("95thPercentile Resp Time in Sec", 0), errors="coerce").fillna(0).mean()), 3)
     else:
         sla_pass = 0
         sla_fail = 0
-    avg_resp = (
-        round(float(pd.to_numeric(apis_df.get("Avg ResTime in sec", 0), errors="coerce").fillna(0).mean()), 3)
-        if not apis_df.empty
-        else 0
-    )
+        avg_resp = 0
+        p95_avg = 0
 
-    metrics = [
-        ("Total APIs", total_apis),
-        ("Total Transactions", total_tx),
-        ("Total Error Count", total_error_count),
-        ("SLA Pass APIs", sla_pass),
-        ("SLA Fail APIs", sla_fail),
-        ("Avg API Resp Time Sec", avg_resp),
+    sla_pass_pct = round((sla_pass / total_apis) * 100, 2) if total_apis else 0
+    sla_fail_pct = round((sla_fail / total_apis) * 100, 2) if total_apis else 0
+    health_score = round(max(0, min(100, sla_pass_pct - (total_error_count / total_samples * 100 if total_samples else 0))), 2)
+
+    # Sheet sizing
+    ws.sheet_view.showGridLines = False
+    for col in range(1, 20):
+        ws.column_dimensions[get_column_letter(col)].width = 16
+    ws.column_dimensions["B"].width = 18
+    ws.column_dimensions["C"].width = 18
+    ws.column_dimensions["J"].width = 24
+    ws.column_dimensions["H"].width = 18
+    ws.column_dimensions["I"].width = 16
+    ws.column_dimensions["K"].width = 18
+    ws.column_dimensions["L"].width = 18
+    ws.column_dimensions["M"].width = 44
+
+    # Title
+    ws.merge_cells("A1:M1")
+    ws["A1"] = "JMeter Performance Executive Dashboard"
+    ws["A1"].font = Font(size=20, bold=True, color="FFFFFF")
+    ws["A1"].fill = PatternFill("solid", fgColor="153B50")
+    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 32
+
+    # KPI cards
+    cards = [
+        ("A3:B5", "Health Score", health_score, "153B50"),
+        ("C3:D5", "SLA Pass %", sla_pass_pct, "1E7D4E"),
+        ("E3:F5", "SLA Fail %", sla_fail_pct, "A61B1B"),
+        ("G3:H5", "Total APIs", total_apis, "31588A"),
+        ("I3:J5", "Total Samples", total_samples, "6A4C93"),
+        ("K3:L5", "Total Errors", total_error_count, "9A3412"),
     ]
+    for cell_range, label, value, color in cards:
+        ws.merge_cells(cell_range)
+        top_left = cell_range.split(":")[0]
+        cell = ws[top_left]
+        cell.value = f"{label}\n{value}"
+        cell.font = Font(size=14, bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor=color)
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        for row in ws[cell_range]:
+            for c in row:
+                c.border = Border(
+                    left=Side(style="thin", color="FFFFFF"),
+                    right=Side(style="thin", color="FFFFFF"),
+                    top=Side(style="thin", color="FFFFFF"),
+                    bottom=Side(style="thin", color="FFFFFF"),
+                )
 
-    start_row = 3
-    for idx, (label, value) in enumerate(metrics):
-        row = start_row + idx
-        ws.cell(row=row, column=1, value=label)
-        ws.cell(row=row, column=2, value=value)
+    # Executive summary
+    ws["A7"] = "Executive Summary"
+    ws["A7"].font = Font(size=14, bold=True, color="153B50")
+    summary_points = [
+        f"SLA result: {sla_pass} APIs passed and {sla_fail} APIs breached SLA.",
+        f"Total executed API samples: {total_samples}.",
+        f"Average API response time: {avg_resp} sec; average P95 response time: {p95_avg} sec.",
+        "AskAI APIs use < 10 sec SLA; Assets, Assessments, Home, Settings and Support APIs use < 2 sec SLA.",
+        "Use the ranked tables below to identify the exact APIs behind each chart number."
+    ]
+    for idx, point in enumerate(summary_points, start=8):
+        ws.cell(row=idx, column=1, value=f"• {point}")
+        ws.cell(row=idx, column=1).alignment = Alignment(wrap_text=True)
+    ws.merge_cells("A8:F8")
+    ws.merge_cells("A9:F9")
+    ws.merge_cells("A10:F10")
+    ws.merge_cells("A11:F11")
+    ws.merge_cells("A12:F12")
 
-    ws["D3"] = "SLA Status"
-    ws["E3"] = "Count"
-    ws["D4"] = "PASS"
-    ws["E4"] = sla_pass
-    ws["D5"] = "FAIL"
-    ws["E5"] = sla_fail
+    # SLA table for guaranteed visible values
+    sla_start = 7
+    ws["H7"] = "SLA Breakdown"
+    ws["H7"].font = Font(size=16, bold=True, color="153B50")
+    ws["H7"].alignment = Alignment(horizontal="center")
+    ws.merge_cells("H7:J7")
+    headers = ["Status", "Count", "Percent"]
+    for j, h in enumerate(headers, start=8):
+        c = ws.cell(row=8, column=j, value=h)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="153B50")
+        c.alignment = Alignment(horizontal="center")
+    sla_rows = [("PASS", sla_pass, sla_pass_pct), ("FAIL", sla_fail, sla_fail_pct), ("TOTAL", sla_pass + sla_fail, 100 if total_apis else 0)]
+    for r_idx, row in enumerate(sla_rows, start=9):
+        for c_idx, val in enumerate(row, start=8):
+            cell = ws.cell(row=r_idx, column=c_idx, value=val)
+            cell.alignment = Alignment(horizontal="center")
+            if row[0] == "PASS":
+                cell.fill = PatternFill("solid", fgColor="D9EAD3")
+            elif row[0] == "FAIL":
+                cell.fill = PatternFill("solid", fgColor="F4CCCC")
+            else:
+                cell.fill = PatternFill("solid", fgColor="D9EAF7")
 
-    ws["G2"] = "API SLA Pass vs Fail"
-    ws["G2"].font = Font(size=12, bold=True, color="1F4E78")
+    # SLA values are shown as a clean table only.
+    # Pie chart removed to keep the dashboard readable.
+
+
+    # Clean SLA pie chart.
+    # Values are shown clearly in the SLA Breakdown table above the chart.
     pie = PieChart()
-    pie.title = None
-    labels = Reference(ws, min_col=4, min_row=4, max_row=5)
-    data = Reference(ws, min_col=5, min_row=3, max_row=5)
+    pie.title = "API SLA Pass vs Fail"
+    labels = Reference(ws, min_col=8, min_row=9, max_row=10)
+    data = Reference(ws, min_col=9, min_row=8, max_row=10)
     pie.add_data(data, titles_from_data=True)
     pie.set_categories(labels)
-    pie.height = 6
-    pie.width = 8
-    ws.add_chart(pie, "G3")
+    pie.height = 7
+    pie.width = 9
+    ws.add_chart(pie, "H13")
+
+    # Helper function to style table headers
+    def style_table_header(row_num, start_col, end_col, fill="153B50"):
+        for col in range(start_col, end_col + 1):
+            cell = ws.cell(row=row_num, column=col)
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor=fill)
+            cell.alignment = Alignment(horizontal="center", wrap_text=True)
+
+    ws["A24"] = "Charts use Rank numbers; full API names and values are in the tables."
+    ws["A24"].font = Font(italic=True, color="666666")
+
+    # Top slow API table using rank labels for chart readability.
+    slow_start = 26
+    ws["A25"] = "Top 10 Slow APIs"
+    ws["A25"].font = Font(size=14, bold=True, color="153B50")
+    slow_headers = ["Rank", "Avg Sec", "Feature", "Scenario", "Endpoint"]
+    for idx, header in enumerate(slow_headers, start=1):
+        ws.cell(row=slow_start, column=idx, value=header)
+    style_table_header(slow_start, 1, 5, "31588A")
 
     top_slow = apis_df.copy()
-    top_slow = top_slow[
-        (top_slow["Feature"].astype(str).str.strip().str.lower() != "total")
-        & (~top_slow["Feature"].astype(str).str.lower().str.contains("select customer", na=False))
-    ]
-    top_slow["Avg ResTime in sec"] = pd.to_numeric(top_slow["Avg ResTime in sec"], errors="coerce")
-    top_slow = top_slow.sort_values("Avg ResTime in sec", ascending=False).head(10)
+    if not top_slow.empty:
+        top_slow["Avg ResTime in sec"] = pd.to_numeric(top_slow.get("Avg ResTime in sec", 0), errors="coerce").fillna(0)
+        top_slow = top_slow.sort_values("Avg ResTime in sec", ascending=False).head(10)
+    for rank, (_, row) in enumerate(top_slow.iterrows(), start=1):
+        excel_row = slow_start + rank
+        ws.cell(row=excel_row, column=1, value=rank)
+        ws.cell(row=excel_row, column=2, value=float(row.get("Avg ResTime in sec") or 0))
+        ws.cell(row=excel_row, column=3, value=row.get("Feature", ""))
+        ws.cell(row=excel_row, column=4, value=row.get("Scenario", ""))
+        ws.cell(row=excel_row, column=5, value=row.get("Endpoint", ""))
 
-    top_start = 12
-    ws.cell(row=top_start, column=1, value="Top 10 Slow APIs")
-    ws.cell(row=top_start, column=1).font = Font(bold=True, color="1F4E78")
-    ws.cell(row=top_start + 1, column=1, value="API")
-    ws.cell(row=top_start + 1, column=2, value="Avg Sec")
-    for idx, (_, row) in enumerate(top_slow.iterrows(), start=top_start + 2):
-        ws.cell(row=idx, column=1, value=f"{row.get('Feature','')}/{row.get('Scenario','')}")
-        ws.cell(row=idx, column=2, value=float(row.get("Avg ResTime in sec") or 0))
+    slow_chart = BarChart()
+    slow_chart.type = "col"
+    slow_chart.title = "Top 10 Slow APIs"
+    slow_chart.y_axis.title = "Avg Response Time (sec)"
+    slow_chart.x_axis.title = "Rank"
+    slow_chart.y_axis.titleOverlay = False
+    slow_chart.x_axis.titleOverlay = False
+    data = Reference(ws, min_col=2, min_row=slow_start, max_row=slow_start + len(top_slow))
+    cats = Reference(ws, min_col=1, min_row=slow_start + 1, max_row=slow_start + len(top_slow))
+    slow_chart.add_data(data, titles_from_data=True)
+    slow_chart.set_categories(cats)
+    slow_chart.height = 11
+    slow_chart.width = 18
+    ws.add_chart(slow_chart, "G26")
 
-    ws["G16"] = "Top 10 Slow APIs"
-    ws["G16"].font = Font(size=12, bold=True, color="1F4E78")
-    bar = BarChart()
-    bar.title = None
-    bar.y_axis.title = "Avg Sec"
-    bar.x_axis.title = "API"
-    data = Reference(ws, min_col=2, min_row=top_start + 1, max_row=top_start + 11)
-    cats = Reference(ws, min_col=1, min_row=top_start + 2, max_row=top_start + 11)
-    bar.add_data(data, titles_from_data=True)
-    bar.set_categories(cats)
-    bar.height = 9
-    bar.width = 18
-    ws.add_chart(bar, "G18")
-
-    # Top 10 Error APIs table and chart.
-    err_start = 30
-    ws.cell(row=err_start, column=1, value="Top 10 Error APIs")
-    ws.cell(row=err_start, column=1).font = Font(bold=True, color="9C0006")
-    ws.cell(row=err_start + 1, column=1, value="API")
-    ws.cell(row=err_start + 1, column=2, value="Error Count")
+    # Top error API table using rank labels.
+    err_start = 44
+    ws["A43"] = "Top 10 Error APIs"
+    ws["A43"].font = Font(size=14, bold=True, color="A61B1B")
+    err_headers = ["Rank", "Error Count", "Feature", "Scenario", "Endpoint"]
+    for idx, header in enumerate(err_headers, start=1):
+        ws.cell(row=err_start, column=idx, value=header)
+    style_table_header(err_start, 1, 5, "A61B1B")
 
     top_errors = apis_df.copy()
-    top_errors["errorCount"] = pd.to_numeric(top_errors.get("errorCount", 0), errors="coerce").fillna(0)
-    top_errors = top_errors[top_errors["errorCount"] > 0].sort_values("errorCount", ascending=False).head(10)
-
+    if not top_errors.empty:
+        top_errors["errorCount"] = pd.to_numeric(top_errors.get("errorCount", 0), errors="coerce").fillna(0)
+        top_errors = top_errors[top_errors["errorCount"] > 0].sort_values("errorCount", ascending=False).head(10)
     if top_errors.empty:
-        ws.cell(row=err_start + 2, column=1, value="No API errors found")
-        ws.cell(row=err_start + 2, column=2, value=0)
+        ws.cell(row=err_start + 1, column=1, value=1)
+        ws.cell(row=err_start + 1, column=2, value=0)
+        ws.cell(row=err_start + 1, column=3, value="No API errors found")
+        chart_error_rows = 1
     else:
-        for idx, (_, row) in enumerate(top_errors.iterrows(), start=err_start + 2):
-            ws.cell(row=idx, column=1, value=f"{row.get('Feature','')}/{row.get('Scenario','')}/{row.get('Endpoint','')}")
-            ws.cell(row=idx, column=2, value=int(row.get("errorCount", 0)))
+        for rank, (_, row) in enumerate(top_errors.iterrows(), start=1):
+            excel_row = err_start + rank
+            ws.cell(row=excel_row, column=1, value=rank)
+            ws.cell(row=excel_row, column=2, value=int(row.get("errorCount") or 0))
+            ws.cell(row=excel_row, column=3, value=row.get("Feature", ""))
+            ws.cell(row=excel_row, column=4, value=row.get("Scenario", ""))
+            ws.cell(row=excel_row, column=5, value=row.get("Endpoint", ""))
+        chart_error_rows = len(top_errors)
 
-        err_bar = BarChart()
-        err_bar.title = "Top 10 Error APIs"
-        err_bar.y_axis.title = "Error Count"
-        err_bar.x_axis.title = "API"
-        err_data = Reference(ws, min_col=2, min_row=err_start + 1, max_row=err_start + 1 + len(top_errors))
-        err_cats = Reference(ws, min_col=1, min_row=err_start + 2, max_row=err_start + 1 + len(top_errors))
-        err_bar.add_data(err_data, titles_from_data=True)
-        err_bar.set_categories(err_cats)
-        err_bar.height = 8
-        err_bar.width = 15
-        ws.add_chart(err_bar, "G35")
+    err_chart = BarChart()
+    err_chart.type = "col"
+    err_chart.title = "Top 10 Error APIs"
+    err_chart.y_axis.title = "Error Count"
+    err_chart.x_axis.title = "Rank"
+    err_chart.y_axis.titleOverlay = False
+    err_chart.x_axis.titleOverlay = False
+    data = Reference(ws, min_col=2, min_row=err_start, max_row=err_start + chart_error_rows)
+    cats = Reference(ws, min_col=1, min_row=err_start + 1, max_row=err_start + chart_error_rows)
+    err_chart.add_data(data, titles_from_data=True)
+    err_chart.set_categories(cats)
+    err_chart.height = 11
+    err_chart.width = 18
+    ws.add_chart(err_chart, "G44")
 
+    # Track-wise slow summary removed from Insights for readability.
+
+    # Formatting
+    for row in ws.iter_rows(min_row=1, max_row=80, min_col=1, max_col=13):
+        for cell in row:
+            cell.alignment = Alignment(vertical="center", wrap_text=True)
+            if isinstance(cell.value, float):
+                cell.number_format = "0.00"
+
+    for col in ["A", "B", "C", "D", "E"]:
+        ws.column_dimensions[col].width = 22
+    ws.column_dimensions["E"].width = 42
+    for col in ["G", "H", "I", "J", "K", "L", "M"]:
+        ws.column_dimensions[col].width = 18
+
+    # Freeze top rows and apply sheet styling without overwriting charts.
     style_sheet(ws)
+
 
 
 
 def add_track_comparison_charts(ws):
     """
-    Add charts inside Track_Comparison.
-    For each uploaded run block, create a small helper table below the comparison table
-    showing top 10 tracks by slowest bucket percentage for Avg metric, then chart it.
+    No additional track summary/charts are added.
+    The main Track_Comparison table is the source of truth.
     """
-    if ws.max_row < 3 or ws.max_column < 7:
-        return
-
-    source_last_row = ws.max_row
-    source_last_col = ws.max_column
-
-    chart_start_row = source_last_row + 4
-    ws.cell(row=chart_start_row, column=1, value="Track Comparison Charts")
-    ws.cell(row=chart_start_row, column=1).font = Font(size=14, bold=True, color="1F4E78")
-
-    run_block_index = 0
-    col = 3
-
-    while col <= source_last_col:
-        run_label = ws.cell(row=1, column=col).value
-        if not run_label:
-            col += 1
-            continue
-
-        slow_bucket_col = col + 3
-        max_seconds_col = col + 4
-
-        avg_rows = []
-        current_track = None
-
-        for row in range(3, source_last_row + 1):
-            track_cell = ws.cell(row=row, column=1).value
-            metric = ws.cell(row=row, column=2).value
-
-            if track_cell not in (None, ""):
-                current_track = track_cell
-
-            if metric == "Avg" and current_track:
-                track_normalized = str(current_track).strip().lower()
-                if track_normalized == "total" or "select customer" in track_normalized:
-                    continue
-
-                slow_pct = ws.cell(row=row, column=slow_bucket_col).value
-                max_seconds = ws.cell(row=row, column=max_seconds_col).value
-
-                try:
-                    slow_pct = float(slow_pct)
-                except Exception:
-                    slow_pct = 0.0
-
-                try:
-                    max_seconds = float(max_seconds)
-                except Exception:
-                    max_seconds = 0.0
-
-                avg_rows.append((current_track, slow_pct, max_seconds))
-
-        if not avg_rows:
-            col += 6
-            continue
-
-        avg_rows = sorted(avg_rows, key=lambda x: (x[1], x[2]), reverse=True)[:10]
-
-        # Create helper table for this run in its own column area.
-        table_col = 1 + (run_block_index * 5)
-        table_row = chart_start_row + 2
-
-        ws.cell(row=table_row, column=table_col, value=f"{run_label} - Top Slow Bucket %")
-        ws.cell(row=table_row, column=table_col).font = Font(bold=True, color="9C0006")
-
-        ws.cell(row=table_row + 1, column=table_col, value="Track")
-        ws.cell(row=table_row + 1, column=table_col + 1, value="Slow Bucket %")
-        ws.cell(row=table_row + 1, column=table_col + 2, value="Max Seconds")
-
-        for idx, (track, slow_pct, max_seconds) in enumerate(avg_rows, start=table_row + 2):
-            ws.cell(row=idx, column=table_col, value=track)
-            ws.cell(row=idx, column=table_col + 1, value=slow_pct)
-            ws.cell(row=idx, column=table_col + 2, value=max_seconds)
-
-        chart = BarChart()
-        chart.title = None
-        chart.y_axis.title = "Slow Bucket %"
-        chart.x_axis.title = "Track"
-
-        data = Reference(
-            ws,
-            min_col=table_col + 1,
-            min_row=table_row + 1,
-            max_row=table_row + 11,
-        )
-        cats = Reference(
-            ws,
-            min_col=table_col,
-            min_row=table_row + 2,
-            max_row=table_row + 11,
-        )
-        chart.add_data(data, titles_from_data=True)
-        chart.set_categories(cats)
-        chart.height = 8
-        chart.width = 14
-
-        chart_anchor_col = get_column_letter(table_col)
-        ws.add_chart(chart, f"{chart_anchor_col}{table_row + 14}")
-
-        run_block_index += 1
-        col += 6
+    return
 
 
 def write_track_comparison_sheet(wb: Workbook, track_matrix: List[List[Any]]):

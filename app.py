@@ -6,9 +6,74 @@ import streamlit as st
 from main import build_report, build_comparison_report
 
 
-st.set_page_config(page_title="JMeter JSON to Excel Report", layout="centered")
+st.set_page_config(page_title="JMeter Performance Dashboard", layout="centered")
 
-st.title("JMeter JSON to Excel Report")
+
+st.markdown(
+    """
+<style>
+    .stApp {
+        background: linear-gradient(135deg, #eef7ff 0%, #f6f2ff 45%, #ecfff4 100%);
+        color: #172033;
+    }
+
+    [data-testid="stHeader"] {
+        background: rgba(255, 255, 255, 0);
+    }
+
+    .block-container {
+        padding-top: 3rem;
+        padding-bottom: 3rem;
+        max-width: 950px;
+    }
+
+    h1 {
+        background: linear-gradient(90deg, #154c79, #7b2cbf);
+        color: white !important;
+        padding: 18px 24px;
+        border-radius: 18px;
+        box-shadow: 0 8px 24px rgba(21, 76, 121, 0.18);
+    }
+
+    h3 {
+        color: #154c79 !important;
+        margin-top: 1.5rem;
+    }
+
+    [data-testid="stFileUploader"] {
+        background: rgba(255, 255, 255, 0.82);
+        border: 1px solid rgba(21, 76, 121, 0.18);
+        border-radius: 16px;
+        padding: 18px;
+        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.06);
+    }
+
+    .stAlert {
+        border-radius: 14px;
+    }
+
+    .stDownloadButton button {
+        background: linear-gradient(90deg, #154c79, #2a9d8f);
+        color: white;
+        border: 0;
+        border-radius: 12px;
+        padding: 0.65rem 1rem;
+        font-weight: 700;
+        box-shadow: 0 6px 18px rgba(42, 157, 143, 0.25);
+    }
+
+    .stDownloadButton button:hover {
+        border: 0;
+        color: white;
+        filter: brightness(1.04);
+    }
+</style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+st.title("JMeter Performance Dashboard")
 st.write(
     "Upload one JMeter `statistics.json` file for the normal report. "
     "Upload two or more files to generate a focused comparison report with Insights, Track_Comparison, and APIs_Comparison."
