@@ -206,7 +206,7 @@ def track_metric_values(df: pd.DataFrame, track: str, metric: str) -> List[Any]:
         counts[bucket_index(value, is_askai)] += 1
 
     percentages = [round((count / total_apis) * 100, 2) for count in counts]
-    max_seconds = round(float(pd.to_numeric(g["max_sec"], errors="coerce").max()), 2)
+    max_seconds = round(float(pd.to_numeric(g[col], errors="coerce").max()), 2)
     return percentages + [max_seconds]
 
 
@@ -835,6 +835,11 @@ def write_excel(frames: Dict[str, pd.DataFrame], output_excel_path: str | Path, 
             continue
         ws = wb.create_sheet(sheet_name)
         df = frames[sheet_name]
+        if sheet_name == "APIs":
+            df = df.drop(
+                columns=[c for c in ["SLA Sec", "SLA Rule", "SLA Status", "SLA Breach Sec"] if c in df.columns],
+                errors="ignore",
+            )
         ws.append(list(df.columns))
         for _, row in df.iterrows():
             ws.append([None if pd.isna(v) else v for v in row.tolist()])
