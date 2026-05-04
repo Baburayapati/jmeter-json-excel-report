@@ -129,3 +129,69 @@ When two or more JSON files are uploaded, the generated workbook contains only:
   - Min row uses max Min response time for that track.
   - Max row uses max Max response time for that track.
 - `Total` and `Select customer` remain excluded from Track_Comparison and its charts.
+
+
+## v18 Chart and UI Polish
+
+- Removed red highlighting from `Max Seconds` columns in `Track_Comparison`.
+- Added value labels to Insights and Track_Comparison charts.
+- Removed x/y axis titles from charts to avoid label collisions.
+- Added a custom gradient background and styled upload/download controls in Streamlit UI.
+
+
+## v19 Axis Titles and Samples
+
+- Added `Total Samples` count in Insights.
+- API SLA pie chart displays values and percentages.
+- Restored x/y axis titles with larger chart sizes and spacing to avoid collisions.
+- Track_Comparison charts include values and x/y axis titles with extra spacing.
+
+
+## v20 Visible Chart Values
+
+- Added Total Samples in Insights.
+- SLA chart source table now includes PASS/FAIL count and percent.
+- API SLA pie chart displays values and percentages.
+- Restored X/Y axis titles with larger chart dimensions and more spacing.
+- Track_Comparison charts include visible values and axis titles with more spacing.
+
+
+## v21 Chart Titles and Visible Values
+
+- API SLA pie chart now has an internal title again.
+- Added visible PASS/FAIL/TOTAL count and percentage summary next to the SLA pie chart.
+- Top 10 Slow APIs, Top 10 Error APIs, and Track_Comparison charts have internal titles.
+- Chart sizes and positions increased to reduce title/plot collision.
+
+
+## v22 Next-Level Dashboard
+
+- Rebuilt Insights as an executive dashboard with KPI cards, health score, SLA breakdown, ranked slow APIs, ranked error APIs, and top slow tracks.
+- Charts now use short rank labels to avoid long API-name collisions.
+- Full API/track names are shown in readable side tables next to each chart.
+- Track_Comparison charts now use rank-based labels and side tables for readability.
+
+
+## v23 Clean Track Tables
+
+- Removed Track charts from `Insights`.
+- Removed Track charts from `Track_Comparison`.
+- Added clean Track-wise summary tables instead.
+- Removed cluttered bar chart value labels; values are shown clearly in the tables.
+- Slow/Error API charts use Rank numbers while full API details are available in tables.
+
+
+## v24 Clean Dashboard
+
+- Removed the `Track-wise Slow Summary` table from `Insights`.
+- Removed the extra `Track-wise Slow Summary` table from `Track_Comparison`.
+- Removed the SLA pie chart because it was visually cluttered.
+- SLA PASS/FAIL/TOTAL values remain as a clean table.
+
+
+## v25 Clean Pie Chart
+
+- Re-added `API SLA Pass vs Fail` pie chart.
+- Removed overlapping pie labels from the chart.
+- PASS/FAIL/TOTAL values are shown clearly in the SLA Breakdown table next to the chart.
+- Track-wise summary remains removed from Insights and Track_Comparison.
