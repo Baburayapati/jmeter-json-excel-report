@@ -264,6 +264,7 @@ def track_metric_values(df: pd.DataFrame, track: str, metric: str) -> List[Any]:
     return percentages + [max_seconds]
 
 
+
 def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str]) -> List[List[Any]]:
     prepared = [prepare_api_df_for_track(path) for path in json_paths]
     all_tracks = sorted(
@@ -274,30 +275,55 @@ def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str
         and "select customer" not in track.strip().lower()
     )
 
-    # 2-row header: run label row, then bucket row.
-    header_1 = ["Track", "Metric"]
-    header_2 = ["Track", "Metric"]
+    askai_tracks = [t for t in all_tracks if str(t).upper().startswith("ASKAI")]
+    other_tracks = [t for t in all_tracks if not str(t).upper().startswith("ASKAI")]
 
-    for label in labels:
-        header_1 += [label, "", "", "", "", ""]
-        header_2 += [
-            "0-10s AskAI / 0-2s Other %",
-            "10-20s AskAI / 3-4s Other %",
-            "20-30s AskAI / 4-6s Other %",
-            ">30s AskAI / >6s Other %",
-            "Max Seconds",
-            "",
-        ]
+    def add_section(matrix: List[List[Any]], section_title: str, tracks: List[str], headers: List[str]) -> None:
+        if not tracks:
+            return
 
-    matrix = [header_1, header_2]
+        # Section title row.
+        section_row = [section_title, ""]
+        for _ in labels:
+            section_row += ["", "", "", "", "", ""]
+        matrix.append(section_row)
 
-    for track in all_tracks:
-        for metric in ["Avg", "Min", "Max"]:
-            row = [track if metric == "Avg" else "", metric]
-            for df in prepared:
-                row += track_metric_values(df, track, metric)
-                row += [""]
-            matrix.append(row)
+        # Run-name row.
+        run_row = ["Track", "Metric"]
+        for label in labels:
+            run_row += [label, "", "", "", "", ""]
+        matrix.append(run_row)
+
+        # Metric header row.
+        header_row = ["Track", "Metric"]
+        for _ in labels:
+            header_row += headers + ["Max Seconds", ""]
+        matrix.append(header_row)
+
+        # Data rows: Avg, Min, Max per track.
+        for track in tracks:
+            for metric in ["Avg", "Min", "Max"]:
+                row = [track if metric == "Avg" else "", metric]
+                for df in prepared:
+                    row += track_metric_values(df, track, metric)
+                    row += [""]
+                matrix.append(row)
+
+        matrix.append([""] * len(header_row))
+
+    matrix: List[List[Any]] = []
+    add_section(
+        matrix,
+        "AskAI Tracks",
+        askai_tracks,
+        ["0-10sec %", "10-20sec %", "20-30sec %", ">30sec %"],
+    )
+    add_section(
+        matrix,
+        "Assets / Assessments / Home / Settings / Support Tracks",
+        other_tracks,
+        ["0-2sec %", "3-4sec %", "4-6sec %", ">6sec %"],
+    )
 
     return matrix
 
@@ -508,6 +534,25 @@ def style_sheet(ws):
             max_len = max(max_len, len(value))
         width = min(max(max_len + 2, 12), 45)
         ws.column_dimensions[get_column_letter(col_idx)].width = width
+
+
+    # Track_Comparison section styling.
+    if ws.title == "Track_Comparison":
+        ws.freeze_panes = "A4"
+        for row_idx in range(1, ws.max_row + 1):
+            first_val = str(ws.cell(row=row_idx, column=1).value or "")
+            if first_val in ["AskAI Tracks", "Assets / Assessments / Home / Settings / Support Tracks"]:
+                for col in range(1, ws.max_column + 1):
+                    cell = ws.cell(row=row_idx, column=col)
+                    cell.fill = PatternFill("solid", fgColor="153B50" if first_val == "AskAI Tracks" else "1E7D4E")
+                    cell.font = Font(color="FFFFFF", bold=True)
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+            elif first_val == "Track" and str(ws.cell(row=row_idx, column=2).value or "") == "Metric":
+                for col in range(1, ws.max_column + 1):
+                    cell = ws.cell(row=row_idx, column=col)
+                    cell.fill = PatternFill("solid", fgColor="D9EAF7")
+                    cell.font = Font(color="000000", bold=True)
+                    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
     # Highlight only response-time cells that breach SLA in APIs sheet.
     headers = [cell.value for cell in ws[1]]
@@ -938,6 +983,13 @@ def write_excel(frames: Dict[str, pd.DataFrame], output_excel_path: str | Path, 
                 errors="ignore",
             )
             df = df.rename(columns={"Feature": "Tracks", "Scenario": "Transactions"})
+        if sheet_name in ["Transactions", "Errors"]:
+            df = df.rename(columns={
+                "transaction": "Transaction",
+                "sampleCount": "SampleCount",
+                "errorCount": "ErrorCount",
+                "errorPct": "ErrorPct",
+            })
         ws.append(list(df.columns))
         for _, row in df.iterrows():
             ws.append([None if pd.isna(v) else v for v in row.tolist()])
