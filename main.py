@@ -1,6 +1,5 @@
 import json
 
-APP_VERSION = "v30-verified-track-comparison"
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -269,6 +268,7 @@ def track_metric_values(df: pd.DataFrame, track: str, metric: str) -> List[Any]:
 
 
 
+
 def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str]) -> List[List[Any]]:
     prepared = [prepare_api_df_for_track(path) for path in json_paths]
     all_tracks = sorted(
@@ -282,10 +282,9 @@ def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str
     askai_tracks = [track for track in all_tracks if str(track).upper().startswith("ASKAI")]
     other_tracks = [track for track in all_tracks if not str(track).upper().startswith("ASKAI")]
 
-    def section_label(section_title: str) -> str:
-        if len(labels) == 1:
-            return f"{section_title} - {labels[0]}"
-        return f"{section_title} - " + " vs ".join(labels)
+    def make_section_title(section_title: str) -> str:
+        report_name = " vs ".join(labels)
+        return f"{section_title} - {report_name}" if report_name else section_title
 
     def add_section(matrix: List[List[Any]], section_title: str, tracks: List[str], bucket_headers: List[str]) -> None:
         if not tracks:
@@ -293,15 +292,16 @@ def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str
 
         section_width = 2 + (len(labels) * 6)
 
-        # Single section title row: includes report name(s).
-        matrix.append([section_label(section_title)] + [""] * (section_width - 1))
+        # Row 1 of section: section name + report name.
+        matrix.append([make_section_title(section_title)] + [""] * (section_width - 1))
 
-        # Only one header row. No duplicate Track/Metric report-name row.
+        # Row 2 of section: bucket headers. There is intentionally NO separate report-name row.
         header_row = ["Track", "Metric"]
         for _ in labels:
             header_row += bucket_headers + ["Max Seconds", ""]
         matrix.append(header_row)
 
+        # Rows 3+: data.
         for track in tracks:
             for metric in ["Avg", "Min", "Max"]:
                 row = [track if metric == "Avg" else "", metric]
@@ -540,7 +540,7 @@ def style_sheet(ws):
 
 
 
-    # Track_Comparison section styling for clean section headers.
+    # Track_Comparison section styling.
     if ws.title == "Track_Comparison":
         ws.freeze_panes = "A3"
         for row_idx in range(1, ws.max_row + 1):
@@ -551,14 +551,14 @@ def style_sheet(ws):
                 for col_idx in range(1, ws.max_column + 1):
                     cell = ws.cell(row=row_idx, column=col_idx)
                     cell.fill = PatternFill("solid", fgColor="153B50")
-                    cell.font = Font(color="FFFFFF", bold=True)
+                    cell.font = Font(color="FFFFFF", bold=True, size=12)
                     cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
             elif first_val.startswith("Assets / Assessments / Home / Settings / Support Tracks"):
                 for col_idx in range(1, ws.max_column + 1):
                     cell = ws.cell(row=row_idx, column=col_idx)
                     cell.fill = PatternFill("solid", fgColor="1E7D4E")
-                    cell.font = Font(color="FFFFFF", bold=True)
+                    cell.font = Font(color="FFFFFF", bold=True, size=12)
                     cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
             elif first_val == "Track" and second_val == "Metric":
@@ -961,17 +961,36 @@ def add_track_comparison_charts(ws):
     return
 
 
+
 def write_track_comparison_sheet(wb: Workbook, track_matrix: List[List[Any]]):
     ws = wb.create_sheet("Track_Comparison")
-    for row in track_matrix:
+
+    # Defensive cleanup: remove old duplicate row like:
+    # Track | Metric | <report name> | ... when followed by bucket headers.
+    cleaned_matrix = []
+    for idx, row in enumerate(track_matrix):
+        next_row = track_matrix[idx + 1] if idx + 1 < len(track_matrix) else []
+        is_legacy_run_row = (
+            len(row) >= 3
+            and row[0] == "Track"
+            and row[1] == "Metric"
+            and row[2] not in ["0-10sec %", "0-2sec %"]
+            and len(next_row) >= 3
+            and next_row[0] == "Track"
+            and next_row[1] == "Metric"
+            and next_row[2] in ["0-10sec %", "0-2sec %"]
+        )
+        if not is_legacy_run_row:
+            cleaned_matrix.append(row)
+
+    for row in cleaned_matrix:
         ws.append(row)
 
-    # Merge each run label over its 5 columns, leaving the spacer column unmerged.
-    col = 3
-    while col <= ws.max_column:
-        if ws.cell(row=1, column=col).value:
-            ws.merge_cells(start_row=1, start_column=col, end_row=1, end_column=col + 4)
-        col += 6
+    # Merge each section title row across the used columns.
+    for row_idx in range(1, ws.max_row + 1):
+        first_val = str(ws.cell(row=row_idx, column=1).value or "")
+        if first_val.startswith("AskAI Tracks") or first_val.startswith("Assets / Assessments / Home / Settings / Support Tracks"):
+            ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=max(ws.max_column, 7))
 
     add_track_comparison_charts(ws)
     style_sheet(ws)

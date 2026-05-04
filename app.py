@@ -40,7 +40,9 @@ st.markdown(
 
     h3 {
         color: #154c79 !important;
-        margin-top: 1.5rem;
+        margin-top: 1rem;
+        font-size: 18px !important;
+        line-height: 1.2 !important;
     }
 
     [data-testid="stFileUploader"] {
@@ -76,6 +78,11 @@ st.markdown(
         font-size: 16px;
         color: #27364a;
         margin-bottom: 1.2rem;
+    }
+
+    .stMarkdown li {
+        font-size: 14px !important;
+        line-height: 1.35 !important;
     }
 </style>
     """,

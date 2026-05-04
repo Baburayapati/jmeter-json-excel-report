@@ -290,13 +290,12 @@ The workbook now has separate sections:
 - Removed Streamlit version caption from UI.
 
 
-## v32 Verified No Duplicate Track Header
+## v33 Clean Headers and UI Fonts
 
-Verified generated Excel has no duplicate `Track / Metric / Report Name` row in `Track_Comparison`.
-
-Expected Track_Comparison layout:
-1. `AskAI Tracks - <report name>`
-2. `Track | Metric | 0-10sec % | 10-20sec % | 20-30sec % | >30sec % | Max Seconds`
-3. Data rows
-
-Same layout is used for the non-AskAI section.
+- Removed duplicate Track/Metric/report row defensively in `write_track_comparison_sheet`.
+- `Track_Comparison` now has only:
+  - Section title row
+  - Bucket header row
+  - Data rows
+- Reduced Streamlit `SLA Rules` and `Track Comparison Buckets` font sizes.
+- Removed version caption from Streamlit UI.
