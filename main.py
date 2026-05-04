@@ -55,13 +55,18 @@ def load_statistics_json(json_path: str | Path) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+
 def parse_report_metadata(json_path: str | Path) -> Dict[str, str]:
     """
     Extract report context from the uploaded JSON filename.
 
-    Example filename:
-    CiscoIQ-SaaS-Support-Services_100Users_100KDevices_APJC_April19_Report.json
+    Supported examples:
+    - CiscoIQ-SaaS-Support-Services_100Users_100KDevices_APJC_1Hour_April-19-2026_Report.json
+    - CiscoIQ-SaaS-Support-Services_50Users_20KDevices_APJC_April15_Report.json
+    - file names containing 10/13 digit epoch timestamps
     """
+    from datetime import datetime, timezone
+
     filename = Path(json_path).name
     name = Path(json_path).stem
 
@@ -69,11 +74,11 @@ def parse_report_metadata(json_path: str | Path) -> Dict[str, str]:
         match = re.search(pattern, name, flags)
         return match.group(group) if match else "N/A"
 
-    users = find_or_na(r"(\d+)\s*Users?")
+    users = find_or_na(r"(\d+)\s*[_\-\s]*Users?")
     if users != "N/A":
         users = f"{users} Users"
 
-    devices = find_or_na(r"(\d+(?:\.\d+)?\s*K?)\s*Devices?")
+    devices = find_or_na(r"(\d+(?:\.\d+)?\s*K?)\s*[_\-\s]*Devices?")
     if devices != "N/A":
         devices = f"{devices.replace(' ', '')} Devices"
 
@@ -81,21 +86,65 @@ def parse_report_metadata(json_path: str | Path) -> Dict[str, str]:
     region = "N/A"
     upper_name = name.upper()
     for candidate in known_regions:
-        if re.search(rf"(?:^|[_\\-\\s]){candidate}(?:$|[_\\-\\s])", upper_name):
+        if re.search(rf"(?:^|[_\-\s]){candidate}(?:$|[_\-\s])", upper_name):
             region = candidate
             break
 
-    date = find_or_na(
-        r"(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[_\\-\\s]*(\\d{1,2})",
-        0,
+    # Duration: 1_Hour, 2_Hour, 1Hour, 90_Min, 30Minutes, etc.
+    duration = "N/A"
+    duration_match = re.search(
+        r"(\d+(?:\.\d+)?)\s*[_\-\s]*(hours?|hrs?|hr|minutes?|mins?|min)(?=$|[_\-\s])",
+        name,
+        re.IGNORECASE,
     )
-    if date != "N/A":
-        date = re.sub(r"[_\\-\\s]+", " ", date).strip()
+    if duration_match:
+        value = duration_match.group(1)
+        unit = duration_match.group(2).lower()
+        if unit.startswith("hour") or unit.startswith("hr"):
+            duration = f"{value} Hour" if value == "1" else f"{value} Hours"
+        else:
+            duration = f"{value} Minute" if value == "1" else f"{value} Minutes"
 
-    duration = find_or_na(
-        r"(\\d+(?:\\.\\d+)?\\s*(?:hours?|hrs?|hr|minutes?|mins?|min))",
-        1,
+    # Date from Month-Day-Year / MonthDayYear / Month-Day / MonthDay.
+    month_pattern = (
+        r"(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+        r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
     )
+    date = "N/A"
+    date_match = re.search(
+        month_pattern + r"[_\-\s]*(\d{1,2})(?:[_\-\s]*(\d{2,4}))?",
+        name,
+        re.IGNORECASE,
+    )
+    if date_match:
+        month = date_match.group(1)
+        day = date_match.group(2)
+        year = date_match.group(3)
+        if year and len(year) == 2:
+            year = "20" + year
+        date = f"{month} {int(day)}" + (f", {year}" if year else "")
+
+    # Fallback: ISO-like date.
+    if date == "N/A":
+        iso_match = re.search(r"(20\d{2})[_\-\s]*(\d{1,2})[_\-\s]*(\d{1,2})", name)
+        if iso_match:
+            year, month, day = iso_match.groups()
+            date = f"{year}-{int(month):02d}-{int(day):02d}"
+
+    # Fallback: epoch timestamp, 10 or 13 digit.
+    if date == "N/A":
+        for epoch_candidate in re.findall(r"(?<!\d)(\d{10}|\d{13})(?!\d)", name):
+            try:
+                epoch_value = int(epoch_candidate)
+                if len(epoch_candidate) == 13:
+                    epoch_value = epoch_value / 1000
+                dt = datetime.fromtimestamp(epoch_value, tz=timezone.utc)
+                # Avoid accidental tiny/invalid timestamps.
+                if 2000 <= dt.year <= 2100:
+                    date = dt.strftime("%b %d, %Y")
+                    break
+            except Exception:
+                pass
 
     return {
         "Report File": filename,
@@ -884,14 +933,14 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     cats = Reference(ws, min_col=1, min_row=slow_start + 1, max_row=slow_start + len(top_slow))
     slow_chart.add_data(data, titles_from_data=True)
     slow_chart.set_categories(cats)
-    slow_chart.height = 11
+    slow_chart.height = 9
     slow_chart.width = 18
     ws.add_chart(slow_chart, "G31")
 
     # Top error API table using rank labels.
-    err_start = 50
-    ws["A49"] = "Top 10 Error APIs"
-    ws["A43"].font = Font(size=14, bold=True, color="A61B1B")
+    err_start = 65
+    ws["A64"] = "Top 10 Error APIs"
+    ws["A64"].font = Font(size=14, bold=True, color="A61B1B")
     err_headers = ["Rank", "Error Count", "Feature", "Scenario", "Endpoint"]
     for idx, header in enumerate(err_headers, start=1):
         ws.cell(row=err_start, column=idx, value=header)
@@ -927,14 +976,14 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     cats = Reference(ws, min_col=1, min_row=err_start + 1, max_row=err_start + chart_error_rows)
     err_chart.add_data(data, titles_from_data=True)
     err_chart.set_categories(cats)
-    err_chart.height = 11
+    err_chart.height = 9
     err_chart.width = 18
-    ws.add_chart(err_chart, "G50")
+    ws.add_chart(err_chart, "G65")
 
     # Track-wise slow summary removed from Insights for readability.
 
     # Formatting
-    for row in ws.iter_rows(min_row=1, max_row=80, min_col=1, max_col=13):
+    for row in ws.iter_rows(min_row=1, max_row=95, min_col=1, max_col=13):
         for cell in row:
             cell.alignment = Alignment(vertical="center", wrap_text=True)
             if isinstance(cell.value, float):

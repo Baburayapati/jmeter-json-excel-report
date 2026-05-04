@@ -37,15 +37,7 @@ st.markdown(
         line-height: 1.25 !important;
         text-align: center;
     }
-
-    h3 {
-        color: #154c79 !important;
-        margin-top: 1rem;
-        font-size: 18px !important;
-        line-height: 1.2 !important;
-    }
-
-    [data-testid="stFileUploader"] {
+[data-testid="stFileUploader"] {
         background: rgba(255, 255, 255, 0.82);
         border: 1px solid rgba(21, 76, 121, 0.18);
         border-radius: 16px;
@@ -78,11 +70,6 @@ st.markdown(
         font-size: 16px;
         color: #27364a;
         margin-bottom: 1.2rem;
-    }
-
-    .stMarkdown li {
-        font-size: 24px !important;
-        line-height: 1.35 !important;
     }
 </style>
     """,
