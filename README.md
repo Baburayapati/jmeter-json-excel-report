@@ -336,3 +336,14 @@ The workbook now has separate sections:
 - Reduced Streamlit font size for SLA Rules and Track Comparison Metrics.
 - Removed bold styling from SLA/Track metric bullet items.
 - Date/duration parser from v36 is retained.
+
+
+## v38 Track Totals, Context Color, UI Pills
+
+- Added `Total` rows for both AskAI and non-AskAI sections in `Track_Comparison`.
+- `Report Context` heading now uses a dark colored heading style.
+- Added better spacing between SLA pie, Top 10 Slow APIs, and Top 10 Error APIs charts.
+- UI metric ranges are green pills again:
+  - 0-10s, 10-20s, 20-30s, >30s
+  - 0-2s, 3-4s, 4-6s, >6s
+- SLA/Track metric bullet text remains smaller and not bold.

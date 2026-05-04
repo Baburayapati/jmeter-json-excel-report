@@ -72,22 +72,35 @@ st.markdown(
         margin-bottom: 1.2rem;
     }
 
-    h3 {
+    .rules-section h3 {
         color: #154c79 !important;
-        margin-top: 0.85rem !important;
-        font-size: 20px !important;
+        margin-top: 0.9rem !important;
+        margin-bottom: 0.35rem !important;
+        font-size: 18px !important;
         line-height: 1.15 !important;
         font-weight: 600 !important;
     }
 
-    .stMarkdown li {
-        font-size: 15px !important;
-        line-height: 1.35 !important;
-        font-weight: 400 !important;
+    .rules-section ul {
+        margin-top: 0.25rem !important;
+        margin-bottom: 1rem !important;
+        padding-left: 1.35rem !important;
     }
 
-    .stMarkdown p {
-        font-size: 15px !important;
+    .rules-section li {
+        font-size: 14px !important;
+        line-height: 1.35 !important;
+        font-weight: 400 !important;
+        margin-bottom: 0.35rem !important;
+    }
+
+    .metric-pill {
+        color: #2e7d32 !important;
+        background: rgba(46, 125, 50, 0.08);
+        border-radius: 7px;
+        padding: 1px 6px;
+        font-weight: 500;
+        white-space: nowrap;
     }
 
 </style>
@@ -104,14 +117,31 @@ st.markdown(
 
 st.markdown(
     """
-### SLA Rules
-- AskAI APIs: SLA is < 10 sec
-- Assets, Assessments, Home, Settings and Support APIs: SLA is < 2 sec
+<div class="rules-section">
+  <h3>SLA Rules</h3>
+  <ul>
+    <li>AskAI APIs: SLA is &lt; 10 sec</li>
+    <li>Assets, Assessments, Home, Settings and Support APIs: SLA is &lt; 2 sec</li>
+  </ul>
 
-### Track Comparison Metrics
-- AskAI tracks: 0-10s, 10-20s, 20-30s, >30s
-- Assets, Assessments, Home, Settings and Support tracks: 0-2s, 3-4s, 4-6s, >6s
-"""
+  <h3>Track Comparison Metrics</h3>
+  <ul>
+    <li>AskAI tracks:
+      <span class="metric-pill">0-10s</span>,
+      <span class="metric-pill">10-20s</span>,
+      <span class="metric-pill">20-30s</span>,
+      <span class="metric-pill">&gt;30s</span>
+    </li>
+    <li>Assets, Assessments, Home, Settings and Support tracks:
+      <span class="metric-pill">0-2s</span>,
+      <span class="metric-pill">3-4s</span>,
+      <span class="metric-pill">4-6s</span>,
+      <span class="metric-pill">&gt;6s</span>
+    </li>
+  </ul>
+</div>
+""",
+    unsafe_allow_html=True,
 )
 
 uploaded_files = st.file_uploader(

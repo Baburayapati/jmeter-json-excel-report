@@ -319,6 +319,7 @@ def track_metric_values(df: pd.DataFrame, track: str, metric: str) -> List[Any]:
 
 
 
+
 def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str]) -> List[List[Any]]:
     prepared = [prepare_api_df_for_track(path) for path in json_paths]
     all_tracks = sorted(
@@ -334,15 +335,39 @@ def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str
 
     report_title = " vs ".join(labels)
 
+    def metric_values_for_tracks(df: pd.DataFrame, tracks: List[str], metric: str) -> List[Any]:
+        g = df[df["Feature"].isin(tracks)].copy()
+        if g.empty:
+            return ["", "", "", "", ""]
+
+        metric_to_col = {
+            "Avg": "avg_sec",
+            "Min": "min_sec",
+            "Max": "max_sec",
+        }
+        col = metric_to_col[metric]
+
+        # Use AskAI buckets only when all tracks in the section are AskAI.
+        is_askai_section = all(str(track).upper().startswith("ASKAI") for track in tracks)
+
+        values = pd.to_numeric(g[col], errors="coerce").dropna()
+        if values.empty:
+            return ["", "", "", "", ""]
+
+        counts = [0, 0, 0, 0]
+        for value in values:
+            counts[bucket_index(value, is_askai_section)] += 1
+
+        percentages = [round((count / len(values)) * 100, 2) for count in counts]
+        max_seconds = round(float(values.max()), 2)
+        return percentages + [max_seconds]
+
     def add_section(matrix: List[List[Any]], title: str, tracks: List[str], bucket_headers: List[str]) -> None:
         if not tracks:
             return
 
         section_width = 2 + (len(labels) * 6)
 
-        # Only two header rows per section:
-        # 1) Section title with report name
-        # 2) Bucket header row
         matrix.append([f"{title} - {report_title}"] + [""] * (section_width - 1))
 
         header_row = ["Track", "Metric"]
@@ -357,6 +382,14 @@ def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str
                     row += track_metric_values(df, track, metric)
                     row += [""]
                 matrix.append(row)
+
+        # Total rows per section.
+        for metric in ["Avg", "Min", "Max"]:
+            row = ["Total" if metric == "Avg" else "", metric]
+            for df in prepared:
+                row += metric_values_for_tracks(df, tracks, metric)
+                row += [""]
+            matrix.append(row)
 
         matrix.append([""] * section_width)
 
@@ -616,6 +649,18 @@ def style_sheet(ws):
                     cell.font = Font(color="000000", bold=True)
                     cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
+
+    # Track_Comparison Total row styling.
+    if ws.title == "Track_Comparison":
+        for row_idx in range(1, ws.max_row + 1):
+            first_val = str(ws.cell(row=row_idx, column=1).value or "")
+            if first_val == "Total":
+                for col_idx in range(1, ws.max_column + 1):
+                    cell = ws.cell(row=row_idx, column=col_idx)
+                    cell.fill = PatternFill("solid", fgColor="FFF2CC")
+                    cell.font = Font(color="000000", bold=True)
+                    cell.alignment = Alignment(horizontal="center" if col_idx > 1 else "left", vertical="center", wrap_text=True)
+
     # Highlight only response-time cells that breach SLA in APIs sheet.
     headers = [cell.value for cell in ws[1]]
     if ws.title == "APIs" and "SLA Sec" in headers:
@@ -810,7 +855,10 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     run_info = run_info_df.iloc[0].to_dict() if run_info_df is not None and not run_info_df.empty else {}
 
     ws["A7"] = "Report Context"
-    ws["A12"].font = Font(size=14, bold=True, color="153B50")
+    ws.merge_cells("A7:E7")
+    ws["A7"].font = Font(size=14, bold=True, color="FFFFFF")
+    ws["A7"].fill = PatternFill("solid", fgColor="153B50")
+    ws["A7"].alignment = Alignment(horizontal="center", vertical="center")
     context_headers = ["Concurrent Users", "Devices Count", "Date", "Duration", "Region"]
     for idx, header in enumerate(context_headers, start=1):
         cell = ws.cell(row=8, column=idx, value=header)
@@ -899,9 +947,9 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
             cell.alignment = Alignment(horizontal="center", wrap_text=True)
 
     # Top slow API table using rank labels for chart readability.
-    slow_start = 26
-    ws["A25"] = "Top 10 Slow APIs"
-    ws["A25"].font = Font(size=14, bold=True, color="153B50")
+    slow_start = 29
+    ws["A28"] = "Top 10 Slow APIs"
+    ws["A28"].font = Font(size=14, bold=True, color="153B50")
     slow_headers = ["Rank", "Avg Sec", "Feature", "Scenario", "Endpoint"]
     for idx, header in enumerate(slow_headers, start=1):
         ws.cell(row=slow_start, column=idx, value=header)
@@ -932,12 +980,12 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     slow_chart.set_categories(cats)
     slow_chart.height = 8
     slow_chart.width = 17
-    ws.add_chart(slow_chart, "G26")
+    ws.add_chart(slow_chart, "G29")
 
     # Top error API table using rank labels.
-    err_start = 40
-    ws["A39"] = "Top 10 Error APIs"
-    ws["A39"].font = Font(size=14, bold=True, color="A61B1B")
+    err_start = 49
+    ws["A48"] = "Top 10 Error APIs"
+    ws["A48"].font = Font(size=14, bold=True, color="A61B1B")
     err_headers = ["Rank", "Error Count", "Feature", "Scenario", "Endpoint"]
     for idx, header in enumerate(err_headers, start=1):
         ws.cell(row=err_start, column=idx, value=header)
@@ -975,7 +1023,7 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     err_chart.set_categories(cats)
     err_chart.height = 8
     err_chart.width = 17
-    ws.add_chart(err_chart, "G40")
+    ws.add_chart(err_chart, "G49")
 
     # Track-wise slow summary removed from Insights for readability.
 
