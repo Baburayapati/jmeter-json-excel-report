@@ -347,3 +347,12 @@ The workbook now has separate sections:
   - 0-10s, 10-20s, 20-30s, >30s
   - 0-2s, 3-4s, 4-6s, >6s
 - SLA/Track metric bullet text remains smaller and not bold.
+
+
+## v39 Final Polish
+
+- Total rows in Track_Comparison are placed immediately below each section header.
+- Report Context heading is dark colored and centered.
+- Charts are spaced apart so they do not touch.
+- UI title and subtitle font sizes reduced.
+- Green metric pills retained for bucket ranges.

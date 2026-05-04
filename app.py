@@ -33,7 +33,7 @@ st.markdown(
         padding: 14px 20px;
         border-radius: 16px;
         box-shadow: 0 8px 24px rgba(21, 76, 121, 0.18);
-        font-size: 24px !important;
+        font-size: 18px !important;
         line-height: 1.25 !important;
         text-align: center;
     }
@@ -67,31 +67,31 @@ st.markdown(
 
     .dashboard-subtitle {
         text-align: center;
-        font-size: 16px;
+        font-size: 12px;
         color: #27364a;
-        margin-bottom: 1.2rem;
+        margin-bottom: 0.8rem;
     }
 
     .rules-section h3 {
         color: #154c79 !important;
-        margin-top: 0.9rem !important;
-        margin-bottom: 0.35rem !important;
-        font-size: 18px !important;
+        margin-top: 0.8rem !important;
+        margin-bottom: 0.3rem !important;
+        font-size: 16px !important;
         line-height: 1.15 !important;
         font-weight: 600 !important;
     }
 
     .rules-section ul {
-        margin-top: 0.25rem !important;
-        margin-bottom: 1rem !important;
-        padding-left: 1.35rem !important;
+        margin-top: 0.2rem !important;
+        margin-bottom: 0.85rem !important;
+        padding-left: 1.2rem !important;
     }
 
     .rules-section li {
-        font-size: 14px !important;
-        line-height: 1.35 !important;
+        font-size: 13px !important;
+        line-height: 1.3 !important;
         font-weight: 400 !important;
-        margin-bottom: 0.35rem !important;
+        margin-bottom: 0.25rem !important;
     }
 
     .metric-pill {
