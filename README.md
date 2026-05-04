@@ -195,3 +195,12 @@ When two or more JSON files are uploaded, the generated workbook contains only:
 - Removed overlapping pie labels from the chart.
 - PASS/FAIL/TOTAL values are shown clearly in the SLA Breakdown table next to the chart.
 - Track-wise summary remains removed from Insights and Track_Comparison.
+
+
+## v26 Code and UI Fix
+
+- Clean SLA pie chart code is included in `main.py`.
+- Pie chart does not use overlapping internal labels.
+- PASS/FAIL/TOTAL values remain visible in the SLA Breakdown table.
+- Streamlit UI title changed to `CiscoIQ-SaaS-Support-Services Performance Dashboard`.
+- Streamlit title font size reduced.
