@@ -299,3 +299,11 @@ The workbook now has separate sections:
   - Data rows
 - Reduced Streamlit `SLA Rules` and `Track Comparison Buckets` font sizes.
 - Removed version caption from Streamlit UI.
+
+
+## v34 Force Clean Track Headers
+
+- Hard removed duplicate `Track | Metric | report name` rows in code.
+- Added a defensive post-write cleanup in `write_track_comparison_sheet`.
+- UI text changed from `Track Comparison Buckets` to `Track Comparison Metrics`.
+- SLA Rules / Track Comparison Metrics font size reduced.

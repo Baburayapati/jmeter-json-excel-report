@@ -81,7 +81,7 @@ st.markdown(
     }
 
     .stMarkdown li {
-        font-size: 14px !important;
+        font-size: 24px !important;
         line-height: 1.35 !important;
     }
 </style>
@@ -102,7 +102,7 @@ st.markdown(
 - **AskAI APIs**: SLA is **< 10 sec**
 - **Assets, Assessments, Home, Settings and Support APIs**: SLA is **< 2 sec**
 
-### Track Comparison Buckets
+### Track Comparison Metrics
 - **AskAI tracks**: `0-10s`, `10-20s`, `20-30s`, `>30s`
 - **Assets, Assessments, Home, Settings and Support tracks**: `0-2s`, `3-4s`, `4-6s`, `>6s`
 """

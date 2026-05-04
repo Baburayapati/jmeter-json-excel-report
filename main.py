@@ -269,6 +269,7 @@ def track_metric_values(df: pd.DataFrame, track: str, metric: str) -> List[Any]:
 
 
 
+
 def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str]) -> List[List[Any]]:
     prepared = [prepare_api_df_for_track(path) for path in json_paths]
     all_tracks = sorted(
@@ -282,26 +283,24 @@ def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str
     askai_tracks = [track for track in all_tracks if str(track).upper().startswith("ASKAI")]
     other_tracks = [track for track in all_tracks if not str(track).upper().startswith("ASKAI")]
 
-    def make_section_title(section_title: str) -> str:
-        report_name = " vs ".join(labels)
-        return f"{section_title} - {report_name}" if report_name else section_title
+    report_title = " vs ".join(labels)
 
-    def add_section(matrix: List[List[Any]], section_title: str, tracks: List[str], bucket_headers: List[str]) -> None:
+    def add_section(matrix: List[List[Any]], title: str, tracks: List[str], bucket_headers: List[str]) -> None:
         if not tracks:
             return
 
         section_width = 2 + (len(labels) * 6)
 
-        # Row 1 of section: section name + report name.
-        matrix.append([make_section_title(section_title)] + [""] * (section_width - 1))
+        # Only two header rows per section:
+        # 1) Section title with report name
+        # 2) Bucket header row
+        matrix.append([f"{title} - {report_title}"] + [""] * (section_width - 1))
 
-        # Row 2 of section: bucket headers. There is intentionally NO separate report-name row.
         header_row = ["Track", "Metric"]
         for _ in labels:
             header_row += bucket_headers + ["Max Seconds", ""]
         matrix.append(header_row)
 
-        # Rows 3+: data.
         for track in tracks:
             for metric in ["Avg", "Min", "Max"]:
                 row = [track if metric == "Avg" else "", metric]
@@ -509,9 +508,9 @@ def style_sheet(ws):
     thin = Side(style="thin", color="BFBFBF")
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
-    ws.freeze_panes = "A3" if ws.title == "Track_Comparison" else "A2"
+    ws.freeze_panes = "A2" if ws.title != "Track_Comparison" else "A3"
 
-    max_header_rows = 2 if ws.title == "Track_Comparison" else 1
+    max_header_rows = 1
     for row_idx in range(1, max_header_rows + 1):
         for cell in ws[row_idx]:
             cell.border = border
@@ -962,35 +961,43 @@ def add_track_comparison_charts(ws):
 
 
 
+
 def write_track_comparison_sheet(wb: Workbook, track_matrix: List[List[Any]]):
     ws = wb.create_sheet("Track_Comparison")
 
-    # Defensive cleanup: remove old duplicate row like:
-    # Track | Metric | <report name> | ... when followed by bucket headers.
-    cleaned_matrix = []
-    for idx, row in enumerate(track_matrix):
-        next_row = track_matrix[idx + 1] if idx + 1 < len(track_matrix) else []
-        is_legacy_run_row = (
-            len(row) >= 3
-            and row[0] == "Track"
-            and row[1] == "Metric"
-            and row[2] not in ["0-10sec %", "0-2sec %"]
-            and len(next_row) >= 3
-            and next_row[0] == "Track"
-            and next_row[1] == "Metric"
-            and next_row[2] in ["0-10sec %", "0-2sec %"]
-        )
-        if not is_legacy_run_row:
-            cleaned_matrix.append(row)
-
-    for row in cleaned_matrix:
+    for row in track_matrix:
         ws.append(row)
 
-    # Merge each section title row across the used columns.
+    # HARD cleanup: delete any legacy duplicate row:
+    # Track | Metric | <report name> | ...
+    # followed by Track | Metric | bucket headers...
+    row_idx = 1
+    while row_idx < ws.max_row:
+        a = ws.cell(row=row_idx, column=1).value
+        b = ws.cell(row=row_idx, column=2).value
+        c = ws.cell(row=row_idx, column=3).value
+        next_a = ws.cell(row=row_idx + 1, column=1).value
+        next_b = ws.cell(row=row_idx + 1, column=2).value
+        next_c = ws.cell(row=row_idx + 1, column=3).value
+
+        if (
+            a == "Track"
+            and b == "Metric"
+            and c not in ("0-10sec %", "0-2sec %")
+            and next_a == "Track"
+            and next_b == "Metric"
+            and next_c in ("0-10sec %", "0-2sec %")
+        ):
+            ws.delete_rows(row_idx, 1)
+            continue
+        row_idx += 1
+
+    # Merge and center section title rows.
     for row_idx in range(1, ws.max_row + 1):
         first_val = str(ws.cell(row=row_idx, column=1).value or "")
         if first_val.startswith("AskAI Tracks") or first_val.startswith("Assets / Assessments / Home / Settings / Support Tracks"):
             ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=max(ws.max_column, 7))
+            ws.cell(row=row_idx, column=1).alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
     add_track_comparison_charts(ws)
     style_sheet(ws)
