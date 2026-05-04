@@ -1,72 +1,69 @@
-# JMeter JSON to Excel Report Generator
+# JMeter JSON to Excel Report Generator with Comparison
 
-This project converts a JMeter static `statistics.json` report into an Excel workbook.
+This Streamlit app converts JMeter static `statistics.json` files into Excel reports.
 
-## Output Sheets
+## Upload Modes
 
-1. `Transactions`
-   - Contains only transaction controller rows starting with `T01`, `T02`, etc.
-   - Does not include split Feature/Scenario/Endpoint columns.
+### Single JSON
+Upload one `statistics.json` file.
 
-2. `Errors`
-   - Contains rows where `errorCount > 0`.
+Output sheets:
+- `Transactions`
+- `Errors`
+- `APIs`
 
-3. `APIs`
-   - Formerly `All_Results`.
-   - Excludes transaction controller rows.
-   - Splits API names into:
-     - `Feature`
-     - `Scenario`
-     - `Endpoint`
+### Multiple JSON Files
+Upload two or more `statistics.json` files.
 
-## Column Rules
+Output sheets:
+- `Transactions` from latest uploaded file
+- `Errors` from latest uploaded file
+- `APIs` from latest uploaded file
+- `Comparison`
 
-Removed from all sheets:
-- `medianResTime`
-- `throughput`
-- `receivedKBytesPerSec`
-- `sentKBytesPerSec`
+## Comparison Logic
 
-Converted from milliseconds to seconds and renamed:
-- `meanResTime` -> `Avg ResTime in sec`
-- `minResTime` -> `Min ResTime in sec`
-- `maxResTime` -> `MaxRes Time in sec`
-- `pct1ResTime` -> `90thPercentile Resp Time in Sec`
-- `pct2ResTime` -> `95thPercentile Resp Time in Sec`
-- `pct3ResTime` -> `99thPercentile Resp Time in Sec`
+The app compares:
+- First uploaded JSON = Baseline
+- Last uploaded JSON = Latest
 
-## Run from Command Line
+The `Comparison` sheet includes:
+- Avg response time difference in seconds
+- Avg response time difference %
+- 90th percentile response time difference
+- 90th percentile response time difference %
+- Error count difference
+- Side-by-side sample count, error count, error %, avg, 90th, 95th, and 99th values for each uploaded file
 
-```bash
-pip install -r requirements.txt
-python main.py statistics.json JMeter_Report.xlsx
-```
-
-## Run UI
+## Run Locally
 
 ```bash
-pip install -r requirements.txt
+python3 -m venv venv
+source venv/bin/activate
+python -m pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Then open the browser URL shown by Streamlit, upload `statistics.json`, and download the Excel report.
+## Deploy to Streamlit Cloud
 
-## Share with Team
+1. Push these files to GitHub:
+   - `app.py`
+   - `main.py`
+   - `requirements.txt`
+   - `README.md`
 
-Option 1: Zip this folder and share it with your team.
+2. Go to Streamlit Cloud.
 
-Option 2: Push the files to GitHub:
-```bash
-git init
-git add .
-git commit -m "JMeter JSON Excel report generator"
-git branch -M main
-git remote add origin <your-github-repo-url>
-git push -u origin main
-```
+3. Deploy:
+   - Repo: your GitHub repo
+   - Branch: `main`
+   - Main file path: `app.py`
 
-Your team can clone the repo and run:
-```bash
-pip install -r requirements.txt
-streamlit run app.py
-```
+4. Share the generated URL with your team.
+
+## Team Usage
+
+1. Open the app URL.
+2. Upload one JSON for normal report.
+3. Upload two/more JSONs for comparison.
+4. Download Excel.
