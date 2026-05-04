@@ -1,39 +1,50 @@
-# JMeter JSON to Excel Report Generator with Comparison
+# JMeter JSON to Excel Report Generator with SLA, Charts, and Comparison
 
 This Streamlit app converts JMeter static `statistics.json` files into Excel reports.
 
-## Upload Modes
+## Output Sheets
 
-### Single JSON
-Upload one `statistics.json` file.
+- `Insights` - KPI summary, SLA chart, top slow APIs chart, top error features chart
+- `Transactions` - only transaction rows starting with `T01`, `T02`, etc.
+- `Errors` - rows where `errorCount > 0`
+- `APIs` - non-transaction API rows only
+- `Comparison` - added when two or more JSON files are uploaded
 
-Output sheets:
-- `Transactions`
-- `Errors`
-- `APIs`
+## Important API Sheet Change
 
-### Multiple JSON Files
-Upload two or more `statistics.json` files.
+The `APIs` sheet does **not** include the original `transaction` column anymore.
 
-Output sheets:
-- `Transactions` from latest uploaded file
-- `Errors` from latest uploaded file
-- `APIs` from latest uploaded file
-- `Comparison`
+Instead, it uses:
+- `Feature`
+- `Scenario`
+- `Endpoint`
 
-## Comparison Logic
+## SLA Rules
 
-The app compares:
-- First uploaded JSON = Baseline
-- Last uploaded JSON = Latest
+- If `Feature` starts with `AskAI` then SLA is `< 10 sec`
+- All other APIs have SLA `< 2 sec`
 
-The `Comparison` sheet includes:
-- Avg response time difference in seconds
-- Avg response time difference %
-- 90th percentile response time difference
-- 90th percentile response time difference %
-- Error count difference
-- Side-by-side sample count, error count, error %, avg, 90th, 95th, and 99th values for each uploaded file
+The app adds:
+- `SLA Sec`
+- `SLA Rule`
+- `SLA Status`
+- `SLA Breach Sec`
+
+## Column Cleanup
+
+Removed from all sheets:
+- `medianResTime`
+- `throughput`
+- `receivedKBytesPerSec`
+- `sentKBytesPerSec`
+
+Converted from milliseconds to seconds and renamed:
+- `meanResTime` -> `Avg ResTime in sec`
+- `minResTime` -> `Min ResTime in sec`
+- `maxResTime` -> `MaxRes Time in sec`
+- `pct1ResTime` -> `90thPercentile Resp Time in Sec`
+- `pct2ResTime` -> `95thPercentile Resp Time in Sec`
+- `pct3ResTime` -> `99thPercentile Resp Time in Sec`
 
 ## Run Locally
 
@@ -46,24 +57,19 @@ streamlit run app.py
 
 ## Deploy to Streamlit Cloud
 
-1. Push these files to GitHub:
+1. Replace your GitHub repo files with:
    - `app.py`
    - `main.py`
    - `requirements.txt`
    - `README.md`
 
-2. Go to Streamlit Cloud.
+2. Commit and push to GitHub.
 
-3. Deploy:
-   - Repo: your GitHub repo
-   - Branch: `main`
-   - Main file path: `app.py`
-
-4. Share the generated URL with your team.
+3. In Streamlit Cloud, redeploy your app.
 
 ## Team Usage
 
-1. Open the app URL.
+1. Open the Streamlit URL.
 2. Upload one JSON for normal report.
 3. Upload two/more JSONs for comparison.
 4. Download Excel.

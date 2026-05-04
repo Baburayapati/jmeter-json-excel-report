@@ -4,6 +4,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+from openpyxl.chart import BarChart, PieChart, Reference
+from openpyxl.utils import get_column_letter
 
 
 REMOVE_COLUMNS = [
@@ -49,7 +53,7 @@ def load_statistics_json(json_path: str | Path) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def clean_and_rename_columns(df: pd.DataFrame) -> pd.DataFrame:
+def apply_common_column_cleanup(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
     for col in REMOVE_COLUMNS:
@@ -61,11 +65,29 @@ def clean_and_rename_columns(df: pd.DataFrame) -> pd.DataFrame:
             df[old_col] = pd.to_numeric(df[old_col], errors="coerce") / 1000
             df = df.rename(columns={old_col: new_col})
 
-    preferred_order = [
+    return df
+
+
+def add_api_sla_columns(apis_df: pd.DataFrame) -> pd.DataFrame:
+    apis_df = apis_df.copy()
+    apis_df["SLA Sec"] = apis_df["Feature"].astype(str).str.upper().str.startswith("ASKAI").map({True: 10, False: 2})
+    apis_df["SLA Rule"] = apis_df["SLA Sec"].map(lambda x: "AskAI API SLA < 10 sec" if x == 10 else "Non-AskAI API SLA < 2 sec")
+    apis_df["SLA Status"] = apis_df.apply(
+        lambda row: "PASS" if pd.to_numeric(row.get("Avg ResTime in sec"), errors="coerce") < row["SLA Sec"] else "FAIL",
+        axis=1,
+    )
+    apis_df["SLA Breach Sec"] = apis_df.apply(
+        lambda row: max((pd.to_numeric(row.get("Avg ResTime in sec"), errors="coerce") or 0) - row["SLA Sec"], 0),
+        axis=1,
+    )
+    return apis_df
+
+
+def order_columns(df: pd.DataFrame, sheet_name: str) -> pd.DataFrame:
+    common_order = [
         "Feature",
         "Scenario",
         "Endpoint",
-        "transaction",
         "sampleCount",
         "errorCount",
         "errorPct",
@@ -75,9 +97,28 @@ def clean_and_rename_columns(df: pd.DataFrame) -> pd.DataFrame:
         "90thPercentile Resp Time in Sec",
         "95thPercentile Resp Time in Sec",
         "99thPercentile Resp Time in Sec",
+        "SLA Sec",
+        "SLA Rule",
+        "SLA Status",
+        "SLA Breach Sec",
     ]
-    ordered = [c for c in preferred_order if c in df.columns]
-    remaining = [c for c in df.columns if c not in ordered]
+
+    if sheet_name in ["Transactions", "Errors"]:
+        common_order = [
+            "transaction",
+            "sampleCount",
+            "errorCount",
+            "errorPct",
+            "Avg ResTime in sec",
+            "Min ResTime in sec",
+            "MaxRes Time in sec",
+            "90thPercentile Resp Time in Sec",
+            "95thPercentile Resp Time in Sec",
+            "99thPercentile Resp Time in Sec",
+        ]
+
+    ordered = [c for c in common_order if c in df.columns]
+    remaining = [c for c in df.columns if c not in ordered and not (sheet_name == "APIs" and c == "transaction")]
     return df[ordered + remaining]
 
 
@@ -92,16 +133,39 @@ def build_single_report_frames(json_path: str | Path):
     split_df.columns = ["Feature", "Scenario", "Endpoint"]
     apis_df = pd.concat([split_df, apis_df], axis=1)
 
+    transactions_df = order_columns(apply_common_column_cleanup(transactions_df), "Transactions")
+    errors_df = order_columns(apply_common_column_cleanup(errors_df), "Errors")
+    apis_df = order_columns(add_api_sla_columns(apply_common_column_cleanup(apis_df)), "APIs")
+
+    insights_df = build_insights_frame(transactions_df, errors_df, apis_df)
+
     return {
-        "Transactions": clean_and_rename_columns(transactions_df),
-        "Errors": clean_and_rename_columns(errors_df),
-        "APIs": clean_and_rename_columns(apis_df),
+        "Insights": insights_df,
+        "Transactions": transactions_df,
+        "Errors": errors_df,
+        "APIs": apis_df,
     }
 
 
-def build_report(json_path: str | Path, output_excel_path: str | Path) -> None:
-    frames = build_single_report_frames(json_path)
-    write_excel(frames, output_excel_path)
+def build_insights_frame(transactions_df: pd.DataFrame, errors_df: pd.DataFrame, apis_df: pd.DataFrame) -> pd.DataFrame:
+    total_apis = len(apis_df)
+    total_transactions = len(transactions_df)
+    total_errors = int(pd.to_numeric(errors_df.get("errorCount", 0), errors="coerce").fillna(0).sum()) if not errors_df.empty else 0
+    sla_failures = int((apis_df.get("SLA Status") == "FAIL").sum()) if not apis_df.empty else 0
+    sla_pass = int((apis_df.get("SLA Status") == "PASS").sum()) if not apis_df.empty else 0
+    avg_api_sec = float(pd.to_numeric(apis_df.get("Avg ResTime in sec", 0), errors="coerce").fillna(0).mean()) if not apis_df.empty else 0
+
+    return pd.DataFrame(
+        [
+            ["Metric", "Value"],
+            ["Total APIs", total_apis],
+            ["Total Transactions", total_transactions],
+            ["Total Error Count", total_errors],
+            ["SLA Pass APIs", sla_pass],
+            ["SLA Fail APIs", sla_failures],
+            ["Average API Response Time Sec", round(avg_api_sec, 3)],
+        ]
+    )
 
 
 def prepare_compare_frame(df: pd.DataFrame, label: str) -> pd.DataFrame:
@@ -128,9 +192,6 @@ def prepare_compare_frame(df: pd.DataFrame, label: str) -> pd.DataFrame:
 
 
 def build_comparison(json_paths: List[str | Path], labels: List[str]) -> pd.DataFrame:
-    if len(json_paths) < 2:
-        return pd.DataFrame()
-
     compare_df = prepare_compare_frame(load_statistics_json(json_paths[0]), labels[0])
 
     for path, label in zip(json_paths[1:], labels[1:]):
@@ -151,7 +212,6 @@ def build_comparison(json_paths: List[str | Path], labels: List[str]) -> pd.Data
     if f"{baseline} Error Count" in compare_df.columns and f"{latest} Error Count" in compare_df.columns:
         compare_df["Error Count Diff"] = compare_df[f"{latest} Error Count"] - compare_df[f"{baseline} Error Count"]
 
-    # Add split columns for non-transaction/API rows too.
     split_df = compare_df["transaction"].apply(lambda x: pd.Series(split_api_name(x)))
     split_df.columns = ["Feature", "Scenario", "Endpoint"]
     compare_df = pd.concat([split_df, compare_df], axis=1)
@@ -161,38 +221,189 @@ def build_comparison(json_paths: List[str | Path], labels: List[str]) -> pd.Data
     return compare_df[first_cols + other_cols]
 
 
+def build_report(json_path: str | Path, output_excel_path: str | Path) -> None:
+    frames = build_single_report_frames(json_path)
+    write_excel(frames, output_excel_path)
+
+
 def build_comparison_report(json_paths: List[str | Path], labels: List[str], output_excel_path: str | Path) -> None:
     frames = build_single_report_frames(json_paths[-1])
     frames["Comparison"] = build_comparison(json_paths, labels)
     write_excel(frames, output_excel_path)
 
 
+def write_dataframe(ws, df: pd.DataFrame):
+    values = df.values.tolist()
+    for row in values:
+        ws.append(row)
+
+
+def style_sheet(ws):
+    header_fill = PatternFill("solid", fgColor="1F4E78")
+    header_font = Font(color="FFFFFF", bold=True)
+    thin = Side(style="thin", color="D9E2F3")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    ws.freeze_panes = "A2"
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = border
+
+    for row in ws.iter_rows(min_row=2):
+        for cell in row:
+            cell.border = border
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+            if isinstance(cell.value, float):
+                cell.number_format = "0.000"
+
+    for col_idx, column_cells in enumerate(ws.columns, start=1):
+        max_len = 0
+        for cell in column_cells:
+            value = "" if cell.value is None else str(cell.value)
+            max_len = max(max_len, len(value))
+        width = min(max(max_len + 2, 12), 45)
+        ws.column_dimensions[get_column_letter(col_idx)].width = width
+
+    # Highlight SLA status.
+    headers = [cell.value for cell in ws[1]]
+    if "SLA Status" in headers:
+        status_col = headers.index("SLA Status") + 1
+        for row in range(2, ws.max_row + 1):
+            cell = ws.cell(row=row, column=status_col)
+            if cell.value == "PASS":
+                cell.fill = PatternFill("solid", fgColor="C6EFCE")
+                cell.font = Font(color="006100", bold=True)
+            elif cell.value == "FAIL":
+                cell.fill = PatternFill("solid", fgColor="FFC7CE")
+                cell.font = Font(color="9C0006", bold=True)
+
+
+def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
+    ws.title = "Insights"
+    ws["A1"] = "JMeter Performance Insights"
+    ws["A1"].font = Font(size=18, bold=True, color="1F4E78")
+    ws.merge_cells("A1:F1")
+
+    apis_df = frames["APIs"]
+    errors_df = frames["Errors"]
+    tx_df = frames["Transactions"]
+
+    total_apis = len(apis_df)
+    total_tx = len(tx_df)
+    total_error_count = int(pd.to_numeric(errors_df.get("errorCount", 0), errors="coerce").fillna(0).sum()) if not errors_df.empty else 0
+    sla_pass = int((apis_df["SLA Status"] == "PASS").sum()) if not apis_df.empty else 0
+    sla_fail = int((apis_df["SLA Status"] == "FAIL").sum()) if not apis_df.empty else 0
+    avg_resp = round(float(pd.to_numeric(apis_df.get("Avg ResTime in sec", 0), errors="coerce").fillna(0).mean()), 3) if not apis_df.empty else 0
+
+    metrics = [
+        ("Total APIs", total_apis),
+        ("Total Transactions", total_tx),
+        ("Total Error Count", total_error_count),
+        ("SLA Pass APIs", sla_pass),
+        ("SLA Fail APIs", sla_fail),
+        ("Avg API Resp Time Sec", avg_resp),
+    ]
+
+    start_row = 3
+    for idx, (label, value) in enumerate(metrics):
+        row = start_row + idx
+        ws.cell(row=row, column=1, value=label)
+        ws.cell(row=row, column=2, value=value)
+
+    # SLA chart data
+    ws["D3"] = "SLA Status"
+    ws["E3"] = "Count"
+    ws["D4"] = "PASS"
+    ws["E4"] = sla_pass
+    ws["D5"] = "FAIL"
+    ws["E5"] = sla_fail
+
+    pie = PieChart()
+    pie.title = "API SLA Pass vs Fail"
+    labels = Reference(ws, min_col=4, min_row=4, max_row=5)
+    data = Reference(ws, min_col=5, min_row=3, max_row=5)
+    pie.add_data(data, titles_from_data=True)
+    pie.set_categories(labels)
+    pie.height = 7
+    pie.width = 9
+    ws.add_chart(pie, "G3")
+
+    # Top slow APIs
+    top_slow = apis_df.copy()
+    top_slow["Avg ResTime in sec"] = pd.to_numeric(top_slow["Avg ResTime in sec"], errors="coerce")
+    top_slow = top_slow.sort_values("Avg ResTime in sec", ascending=False).head(10)
+
+    top_start = 12
+    ws.cell(row=top_start, column=1, value="Top 10 Slow APIs")
+    ws.cell(row=top_start, column=1).font = Font(bold=True, color="1F4E78")
+    ws.cell(row=top_start + 1, column=1, value="API")
+    ws.cell(row=top_start + 1, column=2, value="Avg Sec")
+    for idx, (_, row) in enumerate(top_slow.iterrows(), start=top_start + 2):
+        ws.cell(row=idx, column=1, value=f"{row.get('Feature','')}/{row.get('Scenario','')}")
+        ws.cell(row=idx, column=2, value=float(row.get("Avg ResTime in sec") or 0))
+
+    bar = BarChart()
+    bar.title = "Top 10 Slow APIs"
+    bar.y_axis.title = "Avg Sec"
+    bar.x_axis.title = "API"
+    data = Reference(ws, min_col=2, min_row=top_start + 1, max_row=top_start + 11)
+    cats = Reference(ws, min_col=1, min_row=top_start + 2, max_row=top_start + 11)
+    bar.add_data(data, titles_from_data=True)
+    bar.set_categories(cats)
+    bar.height = 8
+    bar.width = 15
+    ws.add_chart(bar, "G18")
+
+    # Error by feature
+    err_start = 26
+    ws.cell(row=err_start, column=1, value="Errors by Feature")
+    ws.cell(row=err_start, column=1).font = Font(bold=True, color="1F4E78")
+    err_features = pd.DataFrame()
+    if not errors_df.empty:
+        tmp = errors_df.copy()
+        tmp[["Feature", "Scenario", "Endpoint"]] = tmp["transaction"].apply(lambda x: pd.Series(split_api_name(x)))
+        tmp["errorCount"] = pd.to_numeric(tmp["errorCount"], errors="coerce").fillna(0)
+        err_features = tmp.groupby("Feature", as_index=False)["errorCount"].sum().sort_values("errorCount", ascending=False).head(10)
+
+    ws.cell(row=err_start + 1, column=1, value="Feature")
+    ws.cell(row=err_start + 1, column=2, value="Error Count")
+    for idx, (_, row) in enumerate(err_features.iterrows(), start=err_start + 2):
+        ws.cell(row=idx, column=1, value=row["Feature"])
+        ws.cell(row=idx, column=2, value=float(row["errorCount"]))
+
+    if len(err_features) > 0:
+        err_chart = BarChart()
+        err_chart.title = "Top Error Features"
+        err_chart.y_axis.title = "Errors"
+        data = Reference(ws, min_col=2, min_row=err_start + 1, max_row=err_start + 1 + len(err_features))
+        cats = Reference(ws, min_col=1, min_row=err_start + 2, max_row=err_start + 1 + len(err_features))
+        err_chart.add_data(data, titles_from_data=True)
+        err_chart.set_categories(cats)
+        err_chart.height = 8
+        err_chart.width = 15
+        ws.add_chart(err_chart, "G35")
+
+    style_sheet(ws)
+
+
 def write_excel(frames: Dict[str, pd.DataFrame], output_excel_path: str | Path) -> None:
-    with pd.ExcelWriter(output_excel_path, engine="openpyxl") as writer:
-        for sheet_name, df in frames.items():
-            safe_name = sheet_name[:31]
-            df.to_excel(writer, sheet_name=safe_name, index=False)
+    wb = Workbook()
+    ws = wb.active
+    build_insights_sheet(ws, frames)
 
-            sheet = writer.sheets[safe_name]
-            sheet.freeze_panes = "A2"
+    for sheet_name in ["Transactions", "Errors", "APIs", "Comparison"]:
+        if sheet_name not in frames:
+            continue
+        ws = wb.create_sheet(sheet_name)
+        df = frames[sheet_name]
+        ws.append(list(df.columns))
+        for _, row in df.iterrows():
+            ws.append([None if pd.isna(v) else v for v in row.tolist()])
+        style_sheet(ws)
 
-            for cell in sheet[1]:
-                cell.font = cell.font.copy(bold=True)
-                cell.alignment = cell.alignment.copy(horizontal="center", vertical="center", wrap_text=True)
-
-            for column_cells in sheet.columns:
-                max_length = 0
-                col_letter = column_cells[0].column_letter
-                for cell in column_cells:
-                    value = "" if cell.value is None else str(cell.value)
-                    max_length = max(max_length, len(value))
-                sheet.column_dimensions[col_letter].width = min(max(max_length + 2, 12), 45)
-
-            for row in sheet.iter_rows(min_row=2):
-                for cell in row:
-                    header = sheet.cell(row=1, column=cell.column).value
-                    if header and ("sec" in str(header).lower() or "diff %" in str(header).lower() or "error %" in str(header).lower()):
-                        cell.number_format = "0.000"
+    wb.save(output_excel_path)
 
 
 if __name__ == "__main__":
