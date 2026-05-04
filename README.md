@@ -1,50 +1,54 @@
-# JMeter JSON to Excel Report Generator with SLA, Charts, and Comparison
+# JMeter JSON to Excel Report Generator
 
 This Streamlit app converts JMeter static `statistics.json` files into Excel reports.
 
 ## Output Sheets
 
-- `Insights` - KPI summary, SLA chart, top slow APIs chart, top error features chart
+- `Insights` - KPI summary and charts
+- `Track_Comparison` - side-by-side track comparison for all uploaded JSON files
 - `Transactions` - only transaction rows starting with `T01`, `T02`, etc.
 - `Errors` - rows where `errorCount > 0`
-- `APIs` - non-transaction API rows only
-- `Comparison` - added when two or more JSON files are uploaded
+- `APIs` - non-transaction API rows only; original `transaction` column removed
+- `Comparison` - raw API comparison when two or more JSON files are uploaded
 
-## Important API Sheet Change
+## Track_Comparison Logic
 
-The `APIs` sheet does **not** include the original `transaction` column anymore.
+Track = first part of transaction before `/`.
 
-Instead, it uses:
-- `Feature`
-- `Scenario`
-- `Endpoint`
+For each track, the sheet shows three metric rows:
+- `Avg` uses `meanResTime`
+- `Min` uses `minResTime`
+- `Max` uses `maxResTime`
 
-## SLA Rules
+Percentages use **API count**, not sample count.
 
-- If `Feature` starts with `AskAI` then SLA is `< 10 sec`
-- All other APIs have SLA `< 2 sec`
+### Buckets
 
-The app adds:
-- `SLA Sec`
-- `SLA Rule`
-- `SLA Status`
-- `SLA Breach Sec`
+For tracks where Feature starts with `AskAI`:
+- `0-10s`
+- `10-20s`
+- `20-30s`
+- `>30s`
 
-## Column Cleanup
+For all other tracks:
+- `0-2s`
+- `3-4s`
+- `4-6s`
+- `>6s`
 
-Removed from all sheets:
-- `medianResTime`
-- `throughput`
-- `receivedKBytesPerSec`
-- `sentKBytesPerSec`
+Each uploaded JSON file appears as a side-by-side block with:
+- Bucket 1 %
+- Bucket 2 %
+- Bucket 3 %
+- Bucket 4 %
+- Max Seconds
 
-Converted from milliseconds to seconds and renamed:
-- `meanResTime` -> `Avg ResTime in sec`
-- `minResTime` -> `Min ResTime in sec`
-- `maxResTime` -> `MaxRes Time in sec`
-- `pct1ResTime` -> `90thPercentile Resp Time in Sec`
-- `pct2ResTime` -> `95thPercentile Resp Time in Sec`
-- `pct3ResTime` -> `99thPercentile Resp Time in Sec`
+## SLA Logic
+
+- AskAI Feature: SLA `< 10 sec`
+- Non-AskAI Feature: SLA `< 2 sec`
+
+PASS/FAIL in the `APIs` sheet is based on Avg Response Time in seconds.
 
 ## Run Locally
 
@@ -71,5 +75,5 @@ streamlit run app.py
 
 1. Open the Streamlit URL.
 2. Upload one JSON for normal report.
-3. Upload two/more JSONs for comparison.
+3. Upload two or more JSONs for side-by-side comparison.
 4. Download Excel.
