@@ -358,12 +358,11 @@ The workbook now has separate sections:
 - Green metric pills retained for bucket ranges.
 
 
-## v40 Final Insights Cleanup
+## v41 Clean Insights and Compact UI Title
 
-- Rebuilt Insights layout to remove the misaligned `Status / Count / Percent` header issue.
-- `Report Context` now uses text color only and has spacing before its table.
-- SLA Breakdown table is aligned in `H:J`.
-- Charts are separated cleanly:
-  - SLA pie chart at H20
-  - Top 10 Slow APIs at G34
-  - Top 10 Error APIs at G56
+- Rebuilt Insights layout:
+  - Report Context is text-only, properly spaced.
+  - SLA Breakdown columns are aligned in H:J.
+  - Removed stray/misaligned Status/Count/Percent cells.
+  - Charts are separated and readable.
+- Streamlit title box now fits the text instead of spanning full width.

@@ -28,14 +28,9 @@ st.markdown(
     }
 
     h1 {
-        background: linear-gradient(90deg, #154c79, #7b2cbf);
-        color: white !important;
-        padding: 14px 20px;
-        border-radius: 16px;
-        box-shadow: 0 8px 24px rgba(21, 76, 121, 0.18);
-        font-size: 18px !important;
-        line-height: 1.25 !important;
-        text-align: center;
+        background: none !important;
+        padding: 0 !important;
+        box-shadow: none !important;
     }
 [data-testid="stFileUploader"] {
         background: rgba(255, 255, 255, 0.82);
@@ -103,13 +98,29 @@ st.markdown(
         white-space: nowrap;
     }
 
+
+    .dashboard-title {
+        display: table;
+        margin: 0 auto 0.55rem auto;
+        background: linear-gradient(90deg, #154c79, #7b2cbf);
+        color: white;
+        padding: 11px 18px;
+        border-radius: 15px;
+        box-shadow: 0 8px 24px rgba(21, 76, 121, 0.18);
+        font-size: 18px;
+        line-height: 1.2;
+        font-weight: 700;
+        text-align: center;
+        width: auto;
+        max-width: fit-content;
+    }
 </style>
     """,
     unsafe_allow_html=True,
 )
 
 
-st.title("CiscoIQ-SaaS-Support-Services Performance Dashboard")
+st.markdown("<div class='dashboard-title'>CiscoIQ-SaaS-Support-Services Performance Dashboard</div>", unsafe_allow_html=True)
 st.markdown(
     "<div class='dashboard-subtitle'>Upload one JMeter <code>statistics.json</code> file for a normal dashboard report. Upload two or more files for comparison.</div>",
     unsafe_allow_html=True,
