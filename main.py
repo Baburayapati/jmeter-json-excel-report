@@ -1,4 +1,6 @@
 import json
+
+APP_VERSION = "v30-verified-track-comparison"
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -265,6 +267,7 @@ def track_metric_values(df: pd.DataFrame, track: str, metric: str) -> List[Any]:
 
 
 
+
 def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str]) -> List[List[Any]]:
     prepared = [prepare_api_df_for_track(path) for path in json_paths]
     all_tracks = sorted(
@@ -275,32 +278,26 @@ def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str
         and "select customer" not in track.strip().lower()
     )
 
-    askai_tracks = [t for t in all_tracks if str(t).upper().startswith("ASKAI")]
-    other_tracks = [t for t in all_tracks if not str(t).upper().startswith("ASKAI")]
+    askai_tracks = [track for track in all_tracks if str(track).upper().startswith("ASKAI")]
+    other_tracks = [track for track in all_tracks if not str(track).upper().startswith("ASKAI")]
 
-    def add_section(matrix: List[List[Any]], section_title: str, tracks: List[str], headers: List[str]) -> None:
+    def add_section(matrix: List[List[Any]], section_title: str, tracks: List[str], bucket_headers: List[str]) -> None:
         if not tracks:
             return
 
-        # Section title row.
-        section_row = [section_title, ""]
-        for _ in labels:
-            section_row += ["", "", "", "", "", ""]
-        matrix.append(section_row)
+        section_width = 2 + (len(labels) * 6)
+        matrix.append([section_title] + [""] * (section_width - 1))
 
-        # Run-name row.
-        run_row = ["Track", "Metric"]
+        run_header = ["Track", "Metric"]
         for label in labels:
-            run_row += [label, "", "", "", "", ""]
-        matrix.append(run_row)
+            run_header += [label, "", "", "", "", ""]
+        matrix.append(run_header)
 
-        # Metric header row.
-        header_row = ["Track", "Metric"]
+        metric_header = ["Track", "Metric"]
         for _ in labels:
-            header_row += headers + ["Max Seconds", ""]
-        matrix.append(header_row)
+            metric_header += bucket_headers + ["Max Seconds", ""]
+        matrix.append(metric_header)
 
-        # Data rows: Avg, Min, Max per track.
         for track in tracks:
             for metric in ["Avg", "Min", "Max"]:
                 row = [track if metric == "Avg" else "", metric]
@@ -309,15 +306,17 @@ def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str
                     row += [""]
                 matrix.append(row)
 
-        matrix.append([""] * len(header_row))
+        matrix.append([""] * section_width)
 
     matrix: List[List[Any]] = []
+
     add_section(
         matrix,
         "AskAI Tracks",
         askai_tracks,
         ["0-10sec %", "10-20sec %", "20-30sec %", ">30sec %"],
     )
+
     add_section(
         matrix,
         "Assets / Assessments / Home / Settings / Support Tracks",
@@ -536,21 +535,33 @@ def style_sheet(ws):
         ws.column_dimensions[get_column_letter(col_idx)].width = width
 
 
-    # Track_Comparison section styling.
+
+    # Track_Comparison section styling for separate AskAI / Other track sections.
     if ws.title == "Track_Comparison":
         ws.freeze_panes = "A4"
         for row_idx in range(1, ws.max_row + 1):
             first_val = str(ws.cell(row=row_idx, column=1).value or "")
+            second_val = str(ws.cell(row=row_idx, column=2).value or "")
+
             if first_val in ["AskAI Tracks", "Assets / Assessments / Home / Settings / Support Tracks"]:
-                for col in range(1, ws.max_column + 1):
-                    cell = ws.cell(row=row_idx, column=col)
-                    cell.fill = PatternFill("solid", fgColor="153B50" if first_val == "AskAI Tracks" else "1E7D4E")
+                fill_color = "153B50" if first_val == "AskAI Tracks" else "1E7D4E"
+                for col_idx in range(1, ws.max_column + 1):
+                    cell = ws.cell(row=row_idx, column=col_idx)
+                    cell.fill = PatternFill("solid", fgColor=fill_color)
                     cell.font = Font(color="FFFFFF", bold=True)
-                    cell.alignment = Alignment(horizontal="center", vertical="center")
-            elif first_val == "Track" and str(ws.cell(row=row_idx, column=2).value or "") == "Metric":
-                for col in range(1, ws.max_column + 1):
-                    cell = ws.cell(row=row_idx, column=col)
+                    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+            elif first_val == "Track" and second_val == "Metric":
+                for col_idx in range(1, ws.max_column + 1):
+                    cell = ws.cell(row=row_idx, column=col_idx)
                     cell.fill = PatternFill("solid", fgColor="D9EAF7")
+                    cell.font = Font(color="000000", bold=True)
+                    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+            elif first_val in ["0-10sec %", "0-2sec %"]:
+                for col_idx in range(1, ws.max_column + 1):
+                    cell = ws.cell(row=row_idx, column=col_idx)
+                    cell.fill = PatternFill("solid", fgColor="EAF3F8")
                     cell.font = Font(color="000000", bold=True)
                     cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 

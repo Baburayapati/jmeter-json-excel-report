@@ -251,3 +251,30 @@ When two or more JSON files are uploaded, the generated workbook contains only:
   - SampleCount
   - ErrorCount
   - ErrorPct
+
+
+## v30 Verified Track Comparison
+
+This package has been verified from the actual project code.
+
+### Track_Comparison
+The workbook now has separate sections:
+- AskAI Tracks
+  - 0-10sec %
+  - 10-20sec %
+  - 20-30sec %
+  - >30sec %
+  - Max Seconds
+
+- Assets / Assessments / Home / Settings / Support Tracks
+  - 0-2sec %
+  - 3-4sec %
+  - 4-6sec %
+  - >6sec %
+  - Max Seconds
+
+### Transactions / Errors headers
+- Transaction
+- SampleCount
+- ErrorCount
+- ErrorPct
