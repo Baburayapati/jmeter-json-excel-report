@@ -307,3 +307,23 @@ The workbook now has separate sections:
 - Added a defensive post-write cleanup in `write_track_comparison_sheet`.
 - UI text changed from `Track Comparison Buckets` to `Track Comparison Metrics`.
 - SLA Rules / Track Comparison Metrics font size reduced.
+
+
+## v35 Spacing, Metadata, UI Font Restore
+
+- Added larger vertical gap between `Top 10 Slow APIs` and `Top 10 Error APIs` charts.
+- Restored normal Streamlit font size for SLA Rules and Track Comparison Metrics bullet text.
+- UI text uses `Track Comparison Metrics`.
+- Filename parser now extracts:
+  - Month-Day-Year / MonthDayYear dates such as `April-19-2026`
+  - Epoch timestamps when present
+  - Duration values such as `1_Hour`, `2_Hour`, `1Hour`, `90_Min`
+
+
+## v36 Duration Parser Fix
+
+- Duration extraction now supports filenames like:
+  - `1Hour`
+  - `1_Hour`
+  - `2-Hour`
+  - `90Min`
