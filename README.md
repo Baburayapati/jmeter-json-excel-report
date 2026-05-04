@@ -119,3 +119,13 @@ When two or more JSON files are uploaded, the generated workbook contains only:
 - Insights charts use external cell titles to avoid title/graph collision.
 - Top 10 Error APIs excludes `Total//` and any `Select customer` rows.
 - Track_Comparison and its charts exclude `Total` and any track containing `Select customer`.
+
+
+## v17 Corrections
+
+- `APIs` sheet defensively removes SLA helper columns M, N, O and P.
+- `Track_Comparison` Max Seconds is now metric-specific:
+  - Avg row uses max Avg response time for that track.
+  - Min row uses max Min response time for that track.
+  - Max row uses max Max response time for that track.
+- `Total` and `Select customer` remain excluded from Track_Comparison and its charts.
