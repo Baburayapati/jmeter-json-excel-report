@@ -766,6 +766,7 @@ def style_sheet(ws):
 
 
 
+
 def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     ws.title = "Insights"
 
@@ -773,7 +774,6 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     errors_df = frames["Errors"].copy()
     tx_df = frames["Transactions"].copy()
 
-    # Remove non-business rows from dashboard calculations.
     if not apis_df.empty and "Feature" in apis_df.columns:
         apis_df = apis_df[
             (apis_df["Feature"].astype(str).str.strip().str.lower() != "total")
@@ -800,30 +800,34 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
 
     sla_pass_pct = round((sla_pass / total_apis) * 100, 2) if total_apis else 0
     sla_fail_pct = round((sla_fail / total_apis) * 100, 2) if total_apis else 0
-    health_score = round(max(0, min(100, sla_pass_pct - (total_error_count / total_samples * 100 if total_samples else 0))), 2)
+    sample_error_rate = (total_error_count / total_samples * 100) if total_samples else 0
+    health_score = round(max(0, min(100, sla_pass_pct - sample_error_rate)), 2)
 
-    # Sheet sizing
+    # Base sheet layout.
     ws.sheet_view.showGridLines = False
-    for col in range(1, 20):
+    for col in range(1, 14):
         ws.column_dimensions[get_column_letter(col)].width = 16
+    ws.column_dimensions["A"].width = 20
     ws.column_dimensions["B"].width = 18
     ws.column_dimensions["C"].width = 18
-    ws.column_dimensions["J"].width = 24
-    ws.column_dimensions["H"].width = 18
+    ws.column_dimensions["D"].width = 22
+    ws.column_dimensions["E"].width = 42
+    ws.column_dimensions["G"].width = 17
+    ws.column_dimensions["H"].width = 16
     ws.column_dimensions["I"].width = 16
-    ws.column_dimensions["K"].width = 18
-    ws.column_dimensions["L"].width = 18
-    ws.column_dimensions["M"].width = 44
+    ws.column_dimensions["J"].width = 16
+    ws.column_dimensions["K"].width = 16
+    ws.column_dimensions["L"].width = 16
+    ws.column_dimensions["M"].width = 16
 
-    # Title
     ws.merge_cells("A1:M1")
     ws["A1"] = "CiscoIQ-SaaS-Support-Services Performance Dashboard"
     ws["A1"].font = Font(size=20, bold=True, color="FFFFFF")
     ws["A1"].fill = PatternFill("solid", fgColor="153B50")
     ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
-    ws.row_dimensions[1].height = 32
+    ws.row_dimensions[1].height = 30
 
-    # KPI cards
+    # KPI cards.
     cards = [
         ("A3:B5", "Health Score", health_score, "153B50"),
         ("C3:D5", "SLA Pass %", sla_pass_pct, "1E7D4E"),
@@ -837,7 +841,7 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
         top_left = cell_range.split(":")[0]
         cell = ws[top_left]
         cell.value = f"{label}\n{value}"
-        cell.font = Font(size=14, bold=True, color="FFFFFF")
+        cell.font = Font(size=13, bold=True, color="FFFFFF")
         cell.fill = PatternFill("solid", fgColor=color)
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         for row in ws[cell_range]:
@@ -849,81 +853,83 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
                     bottom=Side(style="thin", color="FFFFFF"),
                 )
 
-    # Report context parsed from filename
+    # Report Context: text color only, no full-row fill.
     run_info_df = frames.get("Run_Info")
     run_info = run_info_df.iloc[0].to_dict() if run_info_df is not None and not run_info_df.empty else {}
 
-    ws["A7"] = "Report Context"
-    ws.merge_cells("A7:E7")
-    ws["A7"].font = Font(size=14, bold=True, color="FFFFFF")
-    ws["A7"].fill = PatternFill("solid", fgColor="153B50")
-    ws["A7"].alignment = Alignment(horizontal="center", vertical="center")
+    ws["A8"] = "Report Context"
+    ws["A8"].font = Font(size=14, bold=True, color="153B50")
+    ws["A8"].alignment = Alignment(horizontal="left", vertical="center")
+
     context_headers = ["Concurrent Users", "Devices Count", "Date", "Duration", "Region"]
     for idx, header in enumerate(context_headers, start=1):
-        cell = ws.cell(row=8, column=idx, value=header)
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill("solid", fgColor="153B50")
-        cell.alignment = Alignment(horizontal="center", wrap_text=True)
-        value_cell = ws.cell(row=9, column=idx, value=run_info.get(header, "N/A"))
-        value_cell.fill = PatternFill("solid", fgColor="D9EAF7")
+        header_cell = ws.cell(row=9, column=idx, value=header)
+        header_cell.font = Font(bold=True, color="153B50")
+        header_cell.alignment = Alignment(horizontal="center", wrap_text=True)
+        header_cell.border = Border(bottom=Side(style="thin", color="BFBFBF"))
+
+        value_cell = ws.cell(row=10, column=idx, value=run_info.get(header, "N/A"))
         value_cell.alignment = Alignment(horizontal="center", wrap_text=True)
+        value_cell.border = Border(bottom=Side(style="thin", color="BFBFBF"))
 
-    ws["A11"] = "Health Score = SLA Pass % minus sample error rate %, bounded between 0 and 100."
-    ws["A11"].font = Font(italic=True, color="666666")
-    ws.merge_cells("A11:F11")
+    # Health score note and executive summary.
+    ws["A12"] = "Health Score = SLA Pass % minus sample error rate %, bounded between 0 and 100."
+    ws["A12"].font = Font(italic=True, color="666666")
+    ws.merge_cells("A12:F12")
 
-    # Executive summary
-    ws["A12"] = "Executive Summary"
-    ws["A12"].font = Font(size=14, bold=True, color="153B50")
+    ws["A14"] = "Executive Summary"
+    ws["A14"].font = Font(size=14, bold=True, color="153B50")
     summary_points = [
         f"SLA result: {sla_pass} APIs passed and {sla_fail} APIs breached SLA.",
         f"Total executed API samples: {total_samples}.",
         f"Average API response time: {avg_resp} sec; average P95 response time: {p95_avg} sec.",
         "AskAI APIs use < 10 sec SLA; Assets, Assessments, Home, Settings and Support APIs use < 2 sec SLA.",
-        "Use the ranked tables below to identify the exact APIs behind each chart number."
+        "Use the ranked tables below to identify the exact APIs behind each chart number.",
     ]
-    for idx, point in enumerate(summary_points, start=13):
+    for idx, point in enumerate(summary_points, start=15):
         ws.cell(row=idx, column=1, value=f"• {point}")
         ws.cell(row=idx, column=1).alignment = Alignment(wrap_text=True)
-    ws.merge_cells("A13:F13")
-    ws.merge_cells("A14:F14")
-    ws.merge_cells("A15:F15")
-    ws.merge_cells("A16:F16")
-    ws.merge_cells("A17:F17")
+    for r in range(15, 20):
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=6)
 
-    # SLA table for guaranteed visible values
-    sla_start = 7
+    # SLA Breakdown table. Kept aligned in H/J columns; no stray M/O cells.
     ws["H12"] = "SLA Breakdown"
-    ws["H12"].font = Font(size=16, bold=True, color="153B50")
-    ws["H12"].alignment = Alignment(horizontal="center")
+    ws["H12"].font = Font(size=14, bold=True, color="153B50")
     ws.merge_cells("H12:J12")
-    headers = ["Status", "Count", "Percent"]
-    for j, h in enumerate(headers, start=13):
-        c = ws.cell(row=8, column=j, value=h)
-        c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor="153B50")
-        c.alignment = Alignment(horizontal="center")
-    sla_rows = [("PASS", sla_pass, sla_pass_pct), ("FAIL", sla_fail, sla_fail_pct), ("TOTAL", sla_pass + sla_fail, 100 if total_apis else 0)]
-    for r_idx, row in enumerate(sla_rows, start=14):
-        for c_idx, val in enumerate(row, start=8):
-            cell = ws.cell(row=r_idx, column=c_idx, value=val)
-            cell.alignment = Alignment(horizontal="center")
-            if row[0] == "PASS":
-                cell.fill = PatternFill("solid", fgColor="D9EAD3")
-            elif row[0] == "FAIL":
-                cell.fill = PatternFill("solid", fgColor="F4CCCC")
-            else:
-                cell.fill = PatternFill("solid", fgColor="D9EAF7")
 
-    # SLA values are shown as a clean table only.
-    # Pie chart removed to keep the dashboard readable.
+    sla_header_row = 13
+    for c_idx, header in enumerate(["Status", "Count", "Percent"], start=8):
+        cell = ws.cell(row=sla_header_row, column=c_idx, value=header)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="153B50")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
 
+    sla_rows = [
+        ("PASS", sla_pass, sla_pass_pct),
+        ("FAIL", sla_fail, sla_fail_pct),
+        ("TOTAL", sla_pass + sla_fail, 100 if total_apis else 0),
+    ]
+    for r_idx, (status, count, pct) in enumerate(sla_rows, start=14):
+        values = [status, count, pct]
+        for c_offset, val in enumerate(values, start=8):
+            cell = ws.cell(row=r_idx, column=c_offset, value=val)
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.border = Border(
+                left=Side(style="thin", color="BFBFBF"),
+                right=Side(style="thin", color="BFBFBF"),
+                top=Side(style="thin", color="BFBFBF"),
+                bottom=Side(style="thin", color="BFBFBF"),
+            )
+        if status == "PASS":
+            ws.cell(row=r_idx, column=8).font = Font(color="2E7D32", bold=True)
+        elif status == "FAIL":
+            ws.cell(row=r_idx, column=8).font = Font(color="C62828", bold=True)
+        else:
+            ws.cell(row=r_idx, column=8).font = Font(color="000000", bold=True)
 
-    # Clean SLA pie chart.
-    # Title is outside the chart to avoid touching/overlapping the pie.
+    # Clean SLA pie chart with enough spacing.
     ws["H18"] = "API SLA Pass vs Fail"
     ws["H18"].font = Font(size=14, bold=True, color="153B50")
-    ws["H18"].alignment = Alignment(horizontal="center")
     ws.merge_cells("H18:J18")
 
     pie = PieChart()
@@ -934,10 +940,8 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     pie.set_categories(labels)
     pie.height = 5
     pie.width = 7
-    ws.add_chart(pie, "H19")
+    ws.add_chart(pie, "H20")
 
-
-    # Helper function to style table headers
     def style_table_header(row_num, start_col, end_col, fill="153B50"):
         for col in range(start_col, end_col + 1):
             cell = ws.cell(row=row_num, column=col)
@@ -945,10 +949,10 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
             cell.fill = PatternFill("solid", fgColor=fill)
             cell.alignment = Alignment(horizontal="center", wrap_text=True)
 
-    # Top slow API table using rank labels for chart readability.
-    slow_start = 29
-    ws["A28"] = "Top 10 Slow APIs"
-    ws["A28"].font = Font(size=14, bold=True, color="153B50")
+    # Top 10 Slow APIs. Starts after pie section with controlled gap.
+    slow_start = 34
+    ws["A33"] = "Top 10 Slow APIs"
+    ws["A33"].font = Font(size=14, bold=True, color="153B50")
     slow_headers = ["Rank", "Avg Sec", "Feature", "Scenario", "Endpoint"]
     for idx, header in enumerate(slow_headers, start=1):
         ws.cell(row=slow_start, column=idx, value=header)
@@ -958,6 +962,7 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     if not top_slow.empty:
         top_slow["Avg ResTime in sec"] = pd.to_numeric(top_slow.get("Avg ResTime in sec", 0), errors="coerce").fillna(0)
         top_slow = top_slow.sort_values("Avg ResTime in sec", ascending=False).head(10)
+
     for rank, (_, row) in enumerate(top_slow.iterrows(), start=1):
         excel_row = slow_start + rank
         ws.cell(row=excel_row, column=1, value=rank)
@@ -979,12 +984,12 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     slow_chart.set_categories(cats)
     slow_chart.height = 7
     slow_chart.width = 17
-    ws.add_chart(slow_chart, "G29")
+    ws.add_chart(slow_chart, "G34")
 
-    # Top error API table using rank labels.
-    err_start = 54
-    ws["A53"] = "Top 10 Error APIs"
-    ws["A53"].font = Font(size=14, bold=True, color="A61B1B")
+    # Top 10 Error APIs. Separate from slow chart with visible gap.
+    err_start = 56
+    ws["A55"] = "Top 10 Error APIs"
+    ws["A55"].font = Font(size=14, bold=True, color="A61B1B")
     err_headers = ["Rank", "Error Count", "Feature", "Scenario", "Endpoint"]
     for idx, header in enumerate(err_headers, start=1):
         ws.cell(row=err_start, column=idx, value=header)
@@ -994,6 +999,7 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     if not top_errors.empty:
         top_errors["errorCount"] = pd.to_numeric(top_errors.get("errorCount", 0), errors="coerce").fillna(0)
         top_errors = top_errors[top_errors["errorCount"] > 0].sort_values("errorCount", ascending=False).head(10)
+
     if top_errors.empty:
         ws.cell(row=err_start + 1, column=1, value=1)
         ws.cell(row=err_start + 1, column=2, value=0)
@@ -1022,27 +1028,16 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     err_chart.set_categories(cats)
     err_chart.height = 7
     err_chart.width = 17
-    ws.add_chart(err_chart, "G54")
+    ws.add_chart(err_chart, "G56")
 
-    # Track-wise slow summary removed from Insights for readability.
-
-    # Formatting
-    for row in ws.iter_rows(min_row=1, max_row=95, min_col=1, max_col=13):
+    # Final formatting.
+    for row in ws.iter_rows(min_row=1, max_row=78, min_col=1, max_col=13):
         for cell in row:
             cell.alignment = Alignment(vertical="center", wrap_text=True)
             if isinstance(cell.value, float):
                 cell.number_format = "0.00"
 
-    for col in ["A", "B", "C", "D", "E"]:
-        ws.column_dimensions[col].width = 22
-    ws.column_dimensions["E"].width = 42
-    for col in ["G", "H", "I", "J", "K", "L", "M"]:
-        ws.column_dimensions[col].width = 18
-
-    # Freeze top rows and apply sheet styling without overwriting charts.
     style_sheet(ws)
-
-
 
 
 def add_track_comparison_charts(ws):
