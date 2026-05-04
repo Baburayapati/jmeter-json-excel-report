@@ -568,7 +568,7 @@ def style_sheet(ws):
             if col_name in headers:
                 metric_cols.append(headers.index(col_name) + 1)
 
-        feature_col = headers.index("Feature") + 1 if "Feature" in headers else None
+        feature_col = headers.index("Feature") + 1 if "Feature" in headers else (headers.index("Tracks") + 1 if "Tracks" in headers else None)
 
         if feature_col and metric_cols:
             for row in range(2, ws.max_row + 1):
@@ -714,10 +714,9 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
         value_cell.fill = PatternFill("solid", fgColor="D9EAF7")
         value_cell.alignment = Alignment(horizontal="center", wrap_text=True)
 
-    ws["A10"] = "Report File"
-    ws["A10"].font = Font(bold=True, color="153B50")
-    ws["B10"] = run_info.get("Report File", "N/A")
-    ws.merge_cells("B10:F10")
+    ws["A11"] = "Health Score = SLA Pass % minus sample error rate %, bounded between 0 and 100."
+    ws["A11"].font = Font(italic=True, color="666666")
+    ws.merge_cells("A11:F11")
 
     # Executive summary
     ws["A12"] = "Executive Summary"
@@ -767,16 +766,22 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
 
 
     # Clean SLA pie chart.
-    # Values are shown clearly in the SLA Breakdown table above the chart.
+    # Title is outside the chart to avoid touching/overlapping the pie.
+    ws["H18"] = "API SLA Pass vs Fail"
+    ws["H18"].font = Font(size=14, bold=True, color="153B50")
+    ws["H18"].alignment = Alignment(horizontal="center")
+    ws.merge_cells("H18:J18")
+
     pie = PieChart()
-    pie.title = "API SLA Pass vs Fail"
+    pie.title = None
     labels = Reference(ws, min_col=8, min_row=14, max_row=15)
     data = Reference(ws, min_col=9, min_row=13, max_row=15)
     pie.add_data(data, titles_from_data=True)
     pie.set_categories(labels)
     pie.height = 7
     pie.width = 9
-    ws.add_chart(pie, "H18")
+    ws.add_chart(pie, "H20")
+
 
     # Helper function to style table headers
     def style_table_header(row_num, start_col, end_col, fill="153B50"):
@@ -932,6 +937,7 @@ def write_excel(frames: Dict[str, pd.DataFrame], output_excel_path: str | Path, 
                 columns=[c for c in ["SLA Sec", "SLA Rule", "SLA Status", "SLA Breach Sec"] if c in df.columns],
                 errors="ignore",
             )
+            df = df.rename(columns={"Feature": "Tracks", "Scenario": "Transactions"})
         ws.append(list(df.columns))
         for _, row in df.iterrows():
             ws.append([None if pd.isna(v) else v for v in row.tolist()])
