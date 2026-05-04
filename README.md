@@ -91,3 +91,22 @@ streamlit run app.py
 - Streamlit UI wording updated for SLA rules and track buckets.
 - `Track_Comparison` now includes embedded charts for top slow tracks.
 - API percentage calculation remains API-count based.
+
+
+## v14 Final Polish
+
+- Removed M, N, O and P SLA-helper columns from the `APIs` sheet.
+- `APIs` sheet highlights only breaching response-time cells, not full rows.
+- `Track_Comparison` removes `Total` and any track containing `Select customer`.
+- `Track_Comparison` charts also exclude `Total` and `Select customer`.
+- Insights chart sizing/placement improved to reduce title/graph collisions.
+
+
+## v15 Comparison-Focused Update
+
+When two or more JSON files are uploaded, the generated workbook contains only:
+- `Insights`
+- `Track_Comparison`
+- `APIs_Comparison`
+
+`APIs_Comparison` shows Feature, Scenario and Endpoint separately for every uploaded report, plus side-by-side API metrics and baseline-vs-latest diff columns.

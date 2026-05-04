@@ -89,6 +89,8 @@ def add_api_sla_columns(apis_df: pd.DataFrame) -> pd.DataFrame:
 
 def order_columns(df: pd.DataFrame, sheet_name: str) -> pd.DataFrame:
     if sheet_name == "APIs":
+        # Do not show SLA helper columns in APIs sheet.
+        # SLA calculations are still used for response-time cell highlighting.
         preferred = [
             "Feature",
             "Scenario",
@@ -102,12 +104,9 @@ def order_columns(df: pd.DataFrame, sheet_name: str) -> pd.DataFrame:
             "90thPercentile Resp Time in Sec",
             "95thPercentile Resp Time in Sec",
             "99thPercentile Resp Time in Sec",
-            "SLA Sec",
-            "SLA Rule",
-            "SLA Status",
-            "SLA Breach Sec",
         ]
-        remaining = [c for c in df.columns if c not in preferred and c != "transaction"]
+        hidden = {"transaction", "SLA Sec", "SLA Rule", "SLA Status", "SLA Breach Sec"}
+        remaining = [c for c in df.columns if c not in preferred and c not in hidden]
         return df[[c for c in preferred if c in df.columns] + remaining]
 
     preferred = [
@@ -216,7 +215,9 @@ def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str
     all_tracks = sorted(
         track
         for track in set().union(*[set(df["Feature"].dropna().astype(str)) for df in prepared])
-        if "select customer" not in track.lower()
+        if track
+        and track.strip().lower() != "total"
+        and "select customer" not in track.strip().lower()
     )
 
     # 2-row header: run label row, then bucket row.
@@ -315,11 +316,106 @@ def build_report(json_path: str | Path, output_excel_path: str | Path) -> None:
     write_excel(frames, output_excel_path, track_matrix=track_matrix)
 
 
+
+def build_apis_comparison(json_paths: List[str | Path], labels: List[str]) -> pd.DataFrame:
+    """
+    Build API-level side-by-side comparison.
+    Each uploaded report gets its own Feature, Scenario, Endpoint columns
+    plus selected metric columns.
+    """
+    comparison_df = None
+
+    metric_cols = [
+        "sampleCount",
+        "errorCount",
+        "errorPct",
+        "meanResTime",
+        "minResTime",
+        "maxResTime",
+        "pct1ResTime",
+        "pct2ResTime",
+        "pct3ResTime",
+    ]
+
+    metric_rename = {
+        "sampleCount": "Sample Count",
+        "errorCount": "Error Count",
+        "errorPct": "Error %",
+        "meanResTime": "Avg ResTime in sec",
+        "minResTime": "Min ResTime in sec",
+        "maxResTime": "MaxRes Time in sec",
+        "pct1ResTime": "90thPercentile Resp Time in Sec",
+        "pct2ResTime": "95thPercentile Resp Time in Sec",
+        "pct3ResTime": "99thPercentile Resp Time in Sec",
+    }
+
+    for path, label in zip(json_paths, labels):
+        df = load_statistics_json(path)
+        df = df[~df["transaction"].apply(is_transaction)].copy()
+
+        split_df = df["transaction"].apply(lambda x: pd.Series(split_api_name(x)))
+        split_df.columns = [f"{label} Feature", f"{label} Scenario", f"{label} Endpoint"]
+        df = pd.concat([split_df, df], axis=1)
+
+        # Convert response-time metrics from ms to sec.
+        for col in ["meanResTime", "minResTime", "maxResTime", "pct1ResTime", "pct2ResTime", "pct3ResTime"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce") / 1000
+
+        keep_cols = ["transaction", f"{label} Feature", f"{label} Scenario", f"{label} Endpoint"]
+        keep_cols += [c for c in metric_cols if c in df.columns]
+        run_df = df[keep_cols].copy()
+
+        rename_map = {
+            old: f"{label} {new}"
+            for old, new in metric_rename.items()
+            if old in run_df.columns
+        }
+        run_df = run_df.rename(columns=rename_map)
+
+        if comparison_df is None:
+            comparison_df = run_df
+        else:
+            comparison_df = comparison_df.merge(run_df, on="transaction", how="outer")
+
+    if comparison_df is None:
+        return pd.DataFrame()
+
+    # Add diff columns comparing first and last upload.
+    baseline = labels[0]
+    latest = labels[-1]
+
+    base_avg = f"{baseline} Avg ResTime in sec"
+    latest_avg = f"{latest} Avg ResTime in sec"
+    if base_avg in comparison_df.columns and latest_avg in comparison_df.columns:
+        comparison_df["Avg ResTime Diff Sec"] = comparison_df[latest_avg] - comparison_df[base_avg]
+        comparison_df["Avg ResTime Diff %"] = (comparison_df["Avg ResTime Diff Sec"] / comparison_df[base_avg]) * 100
+
+    base_err = f"{baseline} Error Count"
+    latest_err = f"{latest} Error Count"
+    if base_err in comparison_df.columns and latest_err in comparison_df.columns:
+        comparison_df["Error Count Diff"] = comparison_df[latest_err] - comparison_df[base_err]
+
+    # Put transaction at end because Feature/Scenario/Endpoint columns are the main view.
+    ordered = [c for c in comparison_df.columns if c != "transaction"] + ["transaction"]
+    return comparison_df[ordered]
+
+
 def build_comparison_report(json_paths: List[str | Path], labels: List[str], output_excel_path: str | Path) -> None:
-    frames = build_single_report_frames(json_paths[-1])
-    frames["Comparison"] = build_comparison(json_paths, labels)
+    # For comparison mode, keep the workbook focused:
+    # Insights + Track_Comparison + APIs_Comparison only.
+    latest_frames = build_single_report_frames(json_paths[-1])
+    frames = {
+        "APIs_Comparison": build_apis_comparison(json_paths, labels)
+    }
     track_matrix = build_track_comparison_matrix(json_paths, labels)
-    write_excel(frames, output_excel_path, track_matrix=track_matrix)
+    write_excel(
+        frames,
+        output_excel_path,
+        track_matrix=track_matrix,
+        insights_frames=latest_frames,
+        comparison_mode=True,
+    )
 
 
 def style_sheet(ws):
@@ -401,6 +497,67 @@ def style_sheet(ws):
                     status_cell.fill = PatternFill("solid", fgColor="FFC7CE")
                     status_cell.font = Font(color="9C0006", bold=True)
 
+
+    # APIs: highlight ONLY response-time metric cells that breach SLA.
+    # AskAI Feature => 10 sec SLA. Other tracks => 2 sec SLA.
+    if ws.title == "APIs":
+        headers = [cell.value for cell in ws[1]]
+        metric_cols = []
+        for col_name in [
+            "Avg ResTime in sec",
+            "Min ResTime in sec",
+            "MaxRes Time in sec",
+            "90thPercentile Resp Time in Sec",
+            "95thPercentile Resp Time in Sec",
+            "99thPercentile Resp Time in Sec",
+        ]:
+            if col_name in headers:
+                metric_cols.append(headers.index(col_name) + 1)
+
+        feature_col = headers.index("Feature") + 1 if "Feature" in headers else None
+
+        if feature_col and metric_cols:
+            for row in range(2, ws.max_row + 1):
+                feature = str(ws.cell(row=row, column=feature_col).value or "")
+                sla_sec = 10 if feature.upper().startswith("ASKAI") else 2
+
+                for col in metric_cols:
+                    cell = ws.cell(row=row, column=col)
+                    try:
+                        value = float(cell.value)
+                    except Exception:
+                        continue
+                    if value >= sla_sec:
+                        cell.fill = PatternFill("solid", fgColor="FFC7CE")
+                        cell.font = Font(color="9C0006", bold=True)
+
+
+    # APIs_Comparison: format response-time, error, and diff columns.
+    if ws.title == "APIs_Comparison":
+        headers = [cell.value for cell in ws[1]]
+        diff_cols = []
+        for idx, header in enumerate(headers, start=1):
+            h = str(header or "").lower()
+            if "sec" in h or "error %" in h or "diff %" in h:
+                for row in range(2, ws.max_row + 1):
+                    ws.cell(row=row, column=idx).number_format = "0.00"
+            if "diff" in h:
+                diff_cols.append(idx)
+
+        for col in diff_cols:
+            for row in range(2, ws.max_row + 1):
+                cell = ws.cell(row=row, column=col)
+                try:
+                    value = float(cell.value)
+                except Exception:
+                    continue
+                if value > 0:
+                    cell.fill = PatternFill("solid", fgColor="FFC7CE")
+                    cell.font = Font(color="9C0006", bold=True)
+                elif value < 0:
+                    cell.fill = PatternFill("solid", fgColor="C6EFCE")
+                    cell.font = Font(color="006100", bold=True)
+
     # Highlight Max Seconds columns in Track_Comparison.
     if ws.title == "Track_Comparison":
         for col in range(1, ws.max_column + 1):
@@ -425,8 +582,14 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     total_error_count = (
         int(pd.to_numeric(errors_df.get("errorCount", 0), errors="coerce").fillna(0).sum()) if not errors_df.empty else 0
     )
-    sla_pass = int((apis_df["SLA Status"] == "PASS").sum()) if not apis_df.empty else 0
-    sla_fail = int((apis_df["SLA Status"] == "FAIL").sum()) if not apis_df.empty else 0
+    if not apis_df.empty:
+        sla_sec_series = apis_df["Feature"].astype(str).str.upper().str.startswith("ASKAI").map({True: 10, False: 2})
+        avg_sec_series = pd.to_numeric(apis_df.get("Avg ResTime in sec", 0), errors="coerce").fillna(0)
+        sla_pass = int((avg_sec_series < sla_sec_series).sum())
+        sla_fail = int((avg_sec_series >= sla_sec_series).sum())
+    else:
+        sla_pass = 0
+        sla_fail = 0
     avg_resp = (
         round(float(pd.to_numeric(apis_df.get("Avg ResTime in sec", 0), errors="coerce").fillna(0).mean()), 3)
         if not apis_df.empty
@@ -461,8 +624,8 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     data = Reference(ws, min_col=5, min_row=3, max_row=5)
     pie.add_data(data, titles_from_data=True)
     pie.set_categories(labels)
-    pie.height = 7
-    pie.width = 9
+    pie.height = 6
+    pie.width = 8
     ws.add_chart(pie, "G3")
 
     top_slow = apis_df.copy()
@@ -486,8 +649,8 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     cats = Reference(ws, min_col=1, min_row=top_start + 2, max_row=top_start + 11)
     bar.add_data(data, titles_from_data=True)
     bar.set_categories(cats)
-    bar.height = 8
-    bar.width = 15
+    bar.height = 9
+    bar.width = 18
     ws.add_chart(bar, "G18")
 
     # Top 10 Error APIs table and chart.
@@ -564,6 +727,10 @@ def add_track_comparison_charts(ws):
                 current_track = track_cell
 
             if metric == "Avg" and current_track:
+                track_normalized = str(current_track).strip().lower()
+                if track_normalized == "total" or "select customer" in track_normalized:
+                    continue
+
                 slow_pct = ws.cell(row=row, column=slow_bucket_col).value
                 max_seconds = ws.cell(row=row, column=max_seconds_col).value
 
@@ -646,15 +813,16 @@ def write_track_comparison_sheet(wb: Workbook, track_matrix: List[List[Any]]):
     style_sheet(ws)
 
 
-def write_excel(frames: Dict[str, pd.DataFrame], output_excel_path: str | Path, track_matrix: List[List[Any]]) -> None:
+def write_excel(frames: Dict[str, pd.DataFrame], output_excel_path: str | Path, track_matrix: List[List[Any]], insights_frames: Dict[str, pd.DataFrame] | None = None, comparison_mode: bool = False) -> None:
     wb = Workbook()
     ws = wb.active
-    build_insights_sheet(ws, frames)
+    build_insights_sheet(ws, insights_frames if insights_frames is not None else frames)
 
     # Put Track_Comparison near top after Insights.
     write_track_comparison_sheet(wb, track_matrix)
 
-    for sheet_name in ["Transactions", "Errors", "APIs", "Comparison"]:
+    sheet_order = ["APIs_Comparison"] if comparison_mode else ["Transactions", "Errors", "APIs", "Comparison"]
+    for sheet_name in sheet_order:
         if sheet_name not in frames:
             continue
         ws = wb.create_sheet(sheet_name)
