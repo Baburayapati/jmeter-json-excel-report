@@ -618,8 +618,10 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     ws["D5"] = "FAIL"
     ws["E5"] = sla_fail
 
+    ws["G2"] = "API SLA Pass vs Fail"
+    ws["G2"].font = Font(size=12, bold=True, color="1F4E78")
     pie = PieChart()
-    pie.title = "API SLA Pass vs Fail"
+    pie.title = None
     labels = Reference(ws, min_col=4, min_row=4, max_row=5)
     data = Reference(ws, min_col=5, min_row=3, max_row=5)
     pie.add_data(data, titles_from_data=True)
@@ -629,6 +631,10 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     ws.add_chart(pie, "G3")
 
     top_slow = apis_df.copy()
+    top_slow = top_slow[
+        (top_slow["Feature"].astype(str).str.strip().str.lower() != "total")
+        & (~top_slow["Feature"].astype(str).str.lower().str.contains("select customer", na=False))
+    ]
     top_slow["Avg ResTime in sec"] = pd.to_numeric(top_slow["Avg ResTime in sec"], errors="coerce")
     top_slow = top_slow.sort_values("Avg ResTime in sec", ascending=False).head(10)
 
@@ -641,8 +647,10 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
         ws.cell(row=idx, column=1, value=f"{row.get('Feature','')}/{row.get('Scenario','')}")
         ws.cell(row=idx, column=2, value=float(row.get("Avg ResTime in sec") or 0))
 
+    ws["G16"] = "Top 10 Slow APIs"
+    ws["G16"].font = Font(size=12, bold=True, color="1F4E78")
     bar = BarChart()
-    bar.title = "Top 10 Slow APIs"
+    bar.title = None
     bar.y_axis.title = "Avg Sec"
     bar.x_axis.title = "API"
     data = Reference(ws, min_col=2, min_row=top_start + 1, max_row=top_start + 11)
@@ -769,7 +777,7 @@ def add_track_comparison_charts(ws):
             ws.cell(row=idx, column=table_col + 2, value=max_seconds)
 
         chart = BarChart()
-        chart.title = f"{run_label} - Top Slow Tracks"
+        chart.title = None
         chart.y_axis.title = "Slow Bucket %"
         chart.x_axis.title = "Track"
 

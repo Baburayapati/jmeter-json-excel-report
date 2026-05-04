@@ -110,3 +110,12 @@ When two or more JSON files are uploaded, the generated workbook contains only:
 - `APIs_Comparison`
 
 `APIs_Comparison` shows Feature, Scenario and Endpoint separately for every uploaded report, plus side-by-side API metrics and baseline-vs-latest diff columns.
+
+
+## v16 Final Fixes
+
+- APIs sheet removes M, N, O, P SLA-helper columns.
+- APIs sheet highlights only response-time cells that breach SLA.
+- Insights charts use external cell titles to avoid title/graph collision.
+- Top 10 Error APIs excludes `Total//` and any `Select customer` rows.
+- Track_Comparison and its charts exclude `Total` and any track containing `Select customer`.
