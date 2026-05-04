@@ -6,7 +6,7 @@ import streamlit as st
 from main import build_report, build_comparison_report
 
 
-st.set_page_config(page_title="JMeter Performance Dashboard", layout="centered")
+st.set_page_config(page_title="CiscoIQ-SaaS-Support-Services Performance Dashboard", layout="centered")
 
 
 st.markdown(
@@ -30,9 +30,11 @@ st.markdown(
     h1 {
         background: linear-gradient(90deg, #154c79, #7b2cbf);
         color: white !important;
-        padding: 18px 24px;
-        border-radius: 18px;
+        padding: 14px 20px;
+        border-radius: 16px;
         box-shadow: 0 8px 24px rgba(21, 76, 121, 0.18);
+        font-size: 30px !important;
+        line-height: 1.25 !important;
     }
 
     h3 {
@@ -73,7 +75,7 @@ st.markdown(
 )
 
 
-st.title("JMeter Performance Dashboard")
+st.title("CiscoIQ-SaaS-Support-Services Performance Dashboard")
 st.write(
     "Upload one JMeter `statistics.json` file for the normal report. "
     "Upload two or more files to generate a focused comparison report with Insights, Track_Comparison, and APIs_Comparison."
