@@ -885,9 +885,9 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     data = Reference(ws, min_col=9, min_row=13, max_row=15)
     pie.add_data(data, titles_from_data=True)
     pie.set_categories(labels)
-    pie.height = 7
-    pie.width = 9
-    ws.add_chart(pie, "H20")
+    pie.height = 5
+    pie.width = 7
+    ws.add_chart(pie, "H19")
 
 
     # Helper function to style table headers
@@ -898,12 +898,9 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
             cell.fill = PatternFill("solid", fgColor=fill)
             cell.alignment = Alignment(horizontal="center", wrap_text=True)
 
-    ws["A24"] = "Charts use Rank numbers; full API names and values are in the tables."
-    ws["A24"].font = Font(italic=True, color="666666")
-
     # Top slow API table using rank labels for chart readability.
-    slow_start = 31
-    ws["A30"] = "Top 10 Slow APIs"
+    slow_start = 26
+    ws["A25"] = "Top 10 Slow APIs"
     ws["A25"].font = Font(size=14, bold=True, color="153B50")
     slow_headers = ["Rank", "Avg Sec", "Feature", "Scenario", "Endpoint"]
     for idx, header in enumerate(slow_headers, start=1):
@@ -933,14 +930,14 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     cats = Reference(ws, min_col=1, min_row=slow_start + 1, max_row=slow_start + len(top_slow))
     slow_chart.add_data(data, titles_from_data=True)
     slow_chart.set_categories(cats)
-    slow_chart.height = 9
-    slow_chart.width = 18
-    ws.add_chart(slow_chart, "G31")
+    slow_chart.height = 8
+    slow_chart.width = 17
+    ws.add_chart(slow_chart, "G26")
 
     # Top error API table using rank labels.
-    err_start = 65
-    ws["A64"] = "Top 10 Error APIs"
-    ws["A64"].font = Font(size=14, bold=True, color="A61B1B")
+    err_start = 40
+    ws["A39"] = "Top 10 Error APIs"
+    ws["A39"].font = Font(size=14, bold=True, color="A61B1B")
     err_headers = ["Rank", "Error Count", "Feature", "Scenario", "Endpoint"]
     for idx, header in enumerate(err_headers, start=1):
         ws.cell(row=err_start, column=idx, value=header)
@@ -976,9 +973,9 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     cats = Reference(ws, min_col=1, min_row=err_start + 1, max_row=err_start + chart_error_rows)
     err_chart.add_data(data, titles_from_data=True)
     err_chart.set_categories(cats)
-    err_chart.height = 9
-    err_chart.width = 18
-    ws.add_chart(err_chart, "G65")
+    err_chart.height = 8
+    err_chart.width = 17
+    ws.add_chart(err_chart, "G40")
 
     # Track-wise slow summary removed from Insights for readability.
 

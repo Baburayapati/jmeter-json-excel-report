@@ -71,6 +71,25 @@ st.markdown(
         color: #27364a;
         margin-bottom: 1.2rem;
     }
+
+    h3 {
+        color: #154c79 !important;
+        margin-top: 0.85rem !important;
+        font-size: 20px !important;
+        line-height: 1.15 !important;
+        font-weight: 600 !important;
+    }
+
+    .stMarkdown li {
+        font-size: 15px !important;
+        line-height: 1.35 !important;
+        font-weight: 400 !important;
+    }
+
+    .stMarkdown p {
+        font-size: 15px !important;
+    }
+
 </style>
     """,
     unsafe_allow_html=True,
@@ -86,12 +105,12 @@ st.markdown(
 st.markdown(
     """
 ### SLA Rules
-- **AskAI APIs**: SLA is **< 10 sec**
-- **Assets, Assessments, Home, Settings and Support APIs**: SLA is **< 2 sec**
+- AskAI APIs: SLA is < 10 sec
+- Assets, Assessments, Home, Settings and Support APIs: SLA is < 2 sec
 
 ### Track Comparison Metrics
-- **AskAI tracks**: `0-10s`, `10-20s`, `20-30s`, `>30s`
-- **Assets, Assessments, Home, Settings and Support tracks**: `0-2s`, `3-4s`, `4-6s`, `>6s`
+- AskAI tracks: 0-10s, 10-20s, 20-30s, >30s
+- Assets, Assessments, Home, Settings and Support tracks: 0-2s, 3-4s, 4-6s, >6s
 """
 )
 

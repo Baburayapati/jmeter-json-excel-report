@@ -327,3 +327,12 @@ The workbook now has separate sections:
   - `1_Hour`
   - `2-Hour`
   - `90Min`
+
+
+## v37 Chart Gap and UI Font Updates
+
+- Reduced vertical gap between SLA pie chart, Top 10 Slow APIs, and Top 10 Error APIs.
+- Top 10 Error APIs now starts shortly after Top 10 Slow APIs instead of far below.
+- Reduced Streamlit font size for SLA Rules and Track Comparison Metrics.
+- Removed bold styling from SLA/Track metric bullet items.
+- Date/duration parser from v36 is retained.
