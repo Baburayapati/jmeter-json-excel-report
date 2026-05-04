@@ -33,8 +33,9 @@ st.markdown(
         padding: 14px 20px;
         border-radius: 16px;
         box-shadow: 0 8px 24px rgba(21, 76, 121, 0.18);
-        font-size: 28px !important;
+        font-size: 24px !important;
         line-height: 1.25 !important;
+        text-align: center;
     }
 
     h3 {
@@ -69,6 +70,13 @@ st.markdown(
         color: white;
         filter: brightness(1.04);
     }
+
+    .dashboard-subtitle {
+        text-align: center;
+        font-size: 16px;
+        color: #27364a;
+        margin-bottom: 1.2rem;
+    }
 </style>
     """,
     unsafe_allow_html=True,
@@ -76,9 +84,9 @@ st.markdown(
 
 
 st.title("CiscoIQ-SaaS-Support-Services Performance Dashboard")
-st.write(
-    "Upload one JMeter `statistics.json` file for the normal report. "
-    "Upload two or more files to generate a focused comparison report with Insights, Track_Comparison, and APIs_Comparison."
+st.markdown(
+    "<div class='dashboard-subtitle'>Upload one JMeter <code>statistics.json</code> file for a normal dashboard report. Upload two or more files for comparison.</div>",
+    unsafe_allow_html=True,
 )
 
 st.markdown(
@@ -100,6 +108,11 @@ uploaded_files = st.file_uploader(
 )
 
 if uploaded_files:
+    generate_clicked = st.button("Generate Report", type="primary")
+else:
+    generate_clicked = False
+
+if uploaded_files and generate_clicked:
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         json_paths = []

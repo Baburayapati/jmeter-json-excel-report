@@ -217,3 +217,15 @@ When two or more JSON files are uploaded, the generated workbook contains only:
   - Date
   - Duration
   - Region
+
+
+## v28 Dashboard Final Updates
+
+- Removed Report File from the Insights page.
+- Added Health Score explanation in Insights.
+- Moved pie chart title outside the chart to prevent overlap.
+- Streamlit UI title is centered and smaller.
+- Added Generate Report button after upload.
+- APIs sheet column names changed:
+  - `Feature` -> `Tracks`
+  - `Scenario` -> `Transactions`
