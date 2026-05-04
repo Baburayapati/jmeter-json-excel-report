@@ -54,6 +54,58 @@ def load_statistics_json(json_path: str | Path) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def parse_report_metadata(json_path: str | Path) -> Dict[str, str]:
+    """
+    Extract report context from the uploaded JSON filename.
+
+    Example filename:
+    CiscoIQ-SaaS-Support-Services_100Users_100KDevices_APJC_April19_Report.json
+    """
+    filename = Path(json_path).name
+    name = Path(json_path).stem
+
+    def find_or_na(pattern: str, group: int = 1, flags: int = re.IGNORECASE) -> str:
+        match = re.search(pattern, name, flags)
+        return match.group(group) if match else "N/A"
+
+    users = find_or_na(r"(\d+)\s*Users?")
+    if users != "N/A":
+        users = f"{users} Users"
+
+    devices = find_or_na(r"(\d+(?:\.\d+)?\s*K?)\s*Devices?")
+    if devices != "N/A":
+        devices = f"{devices.replace(' ', '')} Devices"
+
+    known_regions = ["APJC", "AMER", "EMEA", "LATAM", "NA", "EU", "US", "INDIA"]
+    region = "N/A"
+    upper_name = name.upper()
+    for candidate in known_regions:
+        if re.search(rf"(?:^|[_\\-\\s]){candidate}(?:$|[_\\-\\s])", upper_name):
+            region = candidate
+            break
+
+    date = find_or_na(
+        r"(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[_\\-\\s]*(\\d{1,2})",
+        0,
+    )
+    if date != "N/A":
+        date = re.sub(r"[_\\-\\s]+", " ", date).strip()
+
+    duration = find_or_na(
+        r"(\\d+(?:\\.\\d+)?\\s*(?:hours?|hrs?|hr|minutes?|mins?|min))",
+        1,
+    )
+
+    return {
+        "Report File": filename,
+        "Concurrent Users": users,
+        "Devices Count": devices,
+        "Date": date,
+        "Duration": duration,
+        "Region": region,
+    }
+
+
 def apply_common_column_cleanup(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
@@ -145,6 +197,7 @@ def build_single_report_frames(json_path: str | Path):
         "Transactions": transactions_df,
         "Errors": errors_df,
         "APIs": apis_df,
+        "Run_Info": pd.DataFrame([parse_report_metadata(json_path)]),
     }
 
 
@@ -613,7 +666,7 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
 
     # Title
     ws.merge_cells("A1:M1")
-    ws["A1"] = "JMeter Performance Executive Dashboard"
+    ws["A1"] = "CiscoIQ-SaaS-Support-Services Performance Dashboard"
     ws["A1"].font = Font(size=20, bold=True, color="FFFFFF")
     ws["A1"].fill = PatternFill("solid", fgColor="153B50")
     ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
@@ -645,9 +698,30 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
                     bottom=Side(style="thin", color="FFFFFF"),
                 )
 
+    # Report context parsed from filename
+    run_info_df = frames.get("Run_Info")
+    run_info = run_info_df.iloc[0].to_dict() if run_info_df is not None and not run_info_df.empty else {}
+
+    ws["A7"] = "Report Context"
+    ws["A12"].font = Font(size=14, bold=True, color="153B50")
+    context_headers = ["Concurrent Users", "Devices Count", "Date", "Duration", "Region"]
+    for idx, header in enumerate(context_headers, start=1):
+        cell = ws.cell(row=8, column=idx, value=header)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="153B50")
+        cell.alignment = Alignment(horizontal="center", wrap_text=True)
+        value_cell = ws.cell(row=9, column=idx, value=run_info.get(header, "N/A"))
+        value_cell.fill = PatternFill("solid", fgColor="D9EAF7")
+        value_cell.alignment = Alignment(horizontal="center", wrap_text=True)
+
+    ws["A10"] = "Report File"
+    ws["A10"].font = Font(bold=True, color="153B50")
+    ws["B10"] = run_info.get("Report File", "N/A")
+    ws.merge_cells("B10:F10")
+
     # Executive summary
-    ws["A7"] = "Executive Summary"
-    ws["A7"].font = Font(size=14, bold=True, color="153B50")
+    ws["A12"] = "Executive Summary"
+    ws["A12"].font = Font(size=14, bold=True, color="153B50")
     summary_points = [
         f"SLA result: {sla_pass} APIs passed and {sla_fail} APIs breached SLA.",
         f"Total executed API samples: {total_samples}.",
@@ -655,29 +729,29 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
         "AskAI APIs use < 10 sec SLA; Assets, Assessments, Home, Settings and Support APIs use < 2 sec SLA.",
         "Use the ranked tables below to identify the exact APIs behind each chart number."
     ]
-    for idx, point in enumerate(summary_points, start=8):
+    for idx, point in enumerate(summary_points, start=13):
         ws.cell(row=idx, column=1, value=f"• {point}")
         ws.cell(row=idx, column=1).alignment = Alignment(wrap_text=True)
-    ws.merge_cells("A8:F8")
-    ws.merge_cells("A9:F9")
-    ws.merge_cells("A10:F10")
-    ws.merge_cells("A11:F11")
-    ws.merge_cells("A12:F12")
+    ws.merge_cells("A13:F13")
+    ws.merge_cells("A14:F14")
+    ws.merge_cells("A15:F15")
+    ws.merge_cells("A16:F16")
+    ws.merge_cells("A17:F17")
 
     # SLA table for guaranteed visible values
     sla_start = 7
-    ws["H7"] = "SLA Breakdown"
-    ws["H7"].font = Font(size=16, bold=True, color="153B50")
-    ws["H7"].alignment = Alignment(horizontal="center")
-    ws.merge_cells("H7:J7")
+    ws["H12"] = "SLA Breakdown"
+    ws["H12"].font = Font(size=16, bold=True, color="153B50")
+    ws["H12"].alignment = Alignment(horizontal="center")
+    ws.merge_cells("H12:J12")
     headers = ["Status", "Count", "Percent"]
-    for j, h in enumerate(headers, start=8):
+    for j, h in enumerate(headers, start=13):
         c = ws.cell(row=8, column=j, value=h)
         c.font = Font(bold=True, color="FFFFFF")
         c.fill = PatternFill("solid", fgColor="153B50")
         c.alignment = Alignment(horizontal="center")
     sla_rows = [("PASS", sla_pass, sla_pass_pct), ("FAIL", sla_fail, sla_fail_pct), ("TOTAL", sla_pass + sla_fail, 100 if total_apis else 0)]
-    for r_idx, row in enumerate(sla_rows, start=9):
+    for r_idx, row in enumerate(sla_rows, start=14):
         for c_idx, val in enumerate(row, start=8):
             cell = ws.cell(row=r_idx, column=c_idx, value=val)
             cell.alignment = Alignment(horizontal="center")
@@ -696,13 +770,13 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     # Values are shown clearly in the SLA Breakdown table above the chart.
     pie = PieChart()
     pie.title = "API SLA Pass vs Fail"
-    labels = Reference(ws, min_col=8, min_row=9, max_row=10)
-    data = Reference(ws, min_col=9, min_row=8, max_row=10)
+    labels = Reference(ws, min_col=8, min_row=14, max_row=15)
+    data = Reference(ws, min_col=9, min_row=13, max_row=15)
     pie.add_data(data, titles_from_data=True)
     pie.set_categories(labels)
     pie.height = 7
     pie.width = 9
-    ws.add_chart(pie, "H13")
+    ws.add_chart(pie, "H18")
 
     # Helper function to style table headers
     def style_table_header(row_num, start_col, end_col, fill="153B50"):
@@ -716,8 +790,8 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     ws["A24"].font = Font(italic=True, color="666666")
 
     # Top slow API table using rank labels for chart readability.
-    slow_start = 26
-    ws["A25"] = "Top 10 Slow APIs"
+    slow_start = 31
+    ws["A30"] = "Top 10 Slow APIs"
     ws["A25"].font = Font(size=14, bold=True, color="153B50")
     slow_headers = ["Rank", "Avg Sec", "Feature", "Scenario", "Endpoint"]
     for idx, header in enumerate(slow_headers, start=1):
@@ -749,11 +823,11 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     slow_chart.set_categories(cats)
     slow_chart.height = 11
     slow_chart.width = 18
-    ws.add_chart(slow_chart, "G26")
+    ws.add_chart(slow_chart, "G31")
 
     # Top error API table using rank labels.
-    err_start = 44
-    ws["A43"] = "Top 10 Error APIs"
+    err_start = 50
+    ws["A49"] = "Top 10 Error APIs"
     ws["A43"].font = Font(size=14, bold=True, color="A61B1B")
     err_headers = ["Rank", "Error Count", "Feature", "Scenario", "Endpoint"]
     for idx, header in enumerate(err_headers, start=1):
@@ -792,7 +866,7 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     err_chart.set_categories(cats)
     err_chart.height = 11
     err_chart.width = 18
-    ws.add_chart(err_chart, "G44")
+    ws.add_chart(err_chart, "G50")
 
     # Track-wise slow summary removed from Insights for readability.
 

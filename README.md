@@ -204,3 +204,16 @@ When two or more JSON files are uploaded, the generated workbook contains only:
 - PASS/FAIL/TOTAL values remain visible in the SLA Breakdown table.
 - Streamlit UI title changed to `CiscoIQ-SaaS-Support-Services Performance Dashboard`.
 - Streamlit title font size reduced.
+
+
+## v27 Title and Report Context
+
+- Excel Insights title changed to `CiscoIQ-SaaS-Support-Services Performance Dashboard`.
+- Streamlit title changed to `CiscoIQ-SaaS-Support-Services Performance Dashboard`.
+- Streamlit title font size reduced.
+- Insights now includes Report Context parsed from the uploaded filename:
+  - Concurrent Users
+  - Devices Count
+  - Date
+  - Duration
+  - Region
