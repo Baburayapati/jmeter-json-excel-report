@@ -229,3 +229,25 @@ When two or more JSON files are uploaded, the generated workbook contains only:
 - APIs sheet column names changed:
   - `Feature` -> `Tracks`
   - `Scenario` -> `Transactions`
+
+
+## v29 Next-Level Comparison Dashboard
+
+- Track_Comparison now separates AskAI tracks and non-AskAI tracks into clear sections.
+- AskAI section columns:
+  - 0-10sec %
+  - 10-20sec %
+  - 20-30sec %
+  - >30sec %
+  - Max Seconds
+- Other tracks section columns:
+  - 0-2sec %
+  - 3-4sec %
+  - 4-6sec %
+  - >6sec %
+  - Max Seconds
+- Transactions and Errors sheets now use capitalized column names:
+  - Transaction
+  - SampleCount
+  - ErrorCount
+  - ErrorPct
