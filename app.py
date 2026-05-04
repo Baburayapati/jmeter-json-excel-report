@@ -9,7 +9,18 @@ from main import build_report, build_comparison_report
 st.set_page_config(page_title="JMeter JSON to Excel Report", layout="centered")
 
 st.title("JMeter JSON to Excel Report")
-st.write("Upload one JMeter `statistics.json` file for a normal report, or upload two/more files for comparison.")
+st.write(
+    "Upload one JMeter `statistics.json` file for the normal report. "
+    "Upload two or more files to add a `Comparison` sheet."
+)
+
+st.markdown(
+    """
+### SLA Rules
+- APIs where **Feature starts with `AskAI`**: SLA is **< 10 sec**
+- All other APIs: SLA is **< 2 sec**
+"""
+)
 
 uploaded_files = st.file_uploader(
     "Upload statistics.json file(s)",
