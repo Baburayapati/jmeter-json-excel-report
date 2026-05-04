@@ -288,3 +288,15 @@ The workbook now has separate sections:
   - `Assets / Assessments / Home / Settings / Support Tracks - <report name>`
 - Kept the bucket header row directly below the section title.
 - Removed Streamlit version caption from UI.
+
+
+## v32 Verified No Duplicate Track Header
+
+Verified generated Excel has no duplicate `Track / Metric / Report Name` row in `Track_Comparison`.
+
+Expected Track_Comparison layout:
+1. `AskAI Tracks - <report name>`
+2. `Track | Metric | 0-10sec % | 10-20sec % | 20-30sec % | >30sec % | Max Seconds`
+3. Data rows
+
+Same layout is used for the non-AskAI section.
