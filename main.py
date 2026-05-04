@@ -268,6 +268,7 @@ def track_metric_values(df: pd.DataFrame, track: str, metric: str) -> List[Any]:
 
 
 
+
 def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str]) -> List[List[Any]]:
     prepared = [prepare_api_df_for_track(path) for path in json_paths]
     all_tracks = sorted(
@@ -281,22 +282,25 @@ def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str
     askai_tracks = [track for track in all_tracks if str(track).upper().startswith("ASKAI")]
     other_tracks = [track for track in all_tracks if not str(track).upper().startswith("ASKAI")]
 
+    def section_label(section_title: str) -> str:
+        if len(labels) == 1:
+            return f"{section_title} - {labels[0]}"
+        return f"{section_title} - " + " vs ".join(labels)
+
     def add_section(matrix: List[List[Any]], section_title: str, tracks: List[str], bucket_headers: List[str]) -> None:
         if not tracks:
             return
 
         section_width = 2 + (len(labels) * 6)
-        matrix.append([section_title] + [""] * (section_width - 1))
 
-        run_header = ["Track", "Metric"]
-        for label in labels:
-            run_header += [label, "", "", "", "", ""]
-        matrix.append(run_header)
+        # Single section title row: includes report name(s).
+        matrix.append([section_label(section_title)] + [""] * (section_width - 1))
 
-        metric_header = ["Track", "Metric"]
+        # Only one header row. No duplicate Track/Metric report-name row.
+        header_row = ["Track", "Metric"]
         for _ in labels:
-            metric_header += bucket_headers + ["Max Seconds", ""]
-        matrix.append(metric_header)
+            header_row += bucket_headers + ["Max Seconds", ""]
+        matrix.append(header_row)
 
         for track in tracks:
             for metric in ["Avg", "Min", "Max"]:
@@ -536,18 +540,24 @@ def style_sheet(ws):
 
 
 
-    # Track_Comparison section styling for separate AskAI / Other track sections.
+    # Track_Comparison section styling for clean section headers.
     if ws.title == "Track_Comparison":
-        ws.freeze_panes = "A4"
+        ws.freeze_panes = "A3"
         for row_idx in range(1, ws.max_row + 1):
             first_val = str(ws.cell(row=row_idx, column=1).value or "")
             second_val = str(ws.cell(row=row_idx, column=2).value or "")
 
-            if first_val in ["AskAI Tracks", "Assets / Assessments / Home / Settings / Support Tracks"]:
-                fill_color = "153B50" if first_val == "AskAI Tracks" else "1E7D4E"
+            if first_val.startswith("AskAI Tracks"):
                 for col_idx in range(1, ws.max_column + 1):
                     cell = ws.cell(row=row_idx, column=col_idx)
-                    cell.fill = PatternFill("solid", fgColor=fill_color)
+                    cell.fill = PatternFill("solid", fgColor="153B50")
+                    cell.font = Font(color="FFFFFF", bold=True)
+                    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+            elif first_val.startswith("Assets / Assessments / Home / Settings / Support Tracks"):
+                for col_idx in range(1, ws.max_column + 1):
+                    cell = ws.cell(row=row_idx, column=col_idx)
+                    cell.fill = PatternFill("solid", fgColor="1E7D4E")
                     cell.font = Font(color="FFFFFF", bold=True)
                     cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
@@ -555,13 +565,6 @@ def style_sheet(ws):
                 for col_idx in range(1, ws.max_column + 1):
                     cell = ws.cell(row=row_idx, column=col_idx)
                     cell.fill = PatternFill("solid", fgColor="D9EAF7")
-                    cell.font = Font(color="000000", bold=True)
-                    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-
-            elif first_val in ["0-10sec %", "0-2sec %"]:
-                for col_idx in range(1, ws.max_column + 1):
-                    cell = ws.cell(row=row_idx, column=col_idx)
-                    cell.fill = PatternFill("solid", fgColor="EAF3F8")
                     cell.font = Font(color="000000", bold=True)
                     cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 

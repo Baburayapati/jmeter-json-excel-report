@@ -278,3 +278,13 @@ The workbook now has separate sections:
 - SampleCount
 - ErrorCount
 - ErrorPct
+
+
+## v31 Clean Track Headers
+
+- Removed duplicate `Track / Metric / Report Name` row in `Track_Comparison`.
+- Section title now includes report name:
+  - `AskAI Tracks - <report name>`
+  - `Assets / Assessments / Home / Settings / Support Tracks - <report name>`
+- Kept the bucket header row directly below the section title.
+- Removed Streamlit version caption from UI.

@@ -84,7 +84,6 @@ st.markdown(
 
 
 st.title("CiscoIQ-SaaS-Support-Services Performance Dashboard")
-st.caption("Version: v30-verified-track-comparison")
 st.markdown(
     "<div class='dashboard-subtitle'>Upload one JMeter <code>statistics.json</code> file for a normal dashboard report. Upload two or more files for comparison.</div>",
     unsafe_allow_html=True,
