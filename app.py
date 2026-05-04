@@ -11,7 +11,7 @@ st.set_page_config(page_title="JMeter JSON to Excel Report", layout="centered")
 st.title("JMeter JSON to Excel Report")
 st.write(
     "Upload one JMeter `statistics.json` file for the normal report. "
-    "Upload two or more files to add a `Comparison` sheet."
+    "Upload two or more files to add side-by-side comparison sheets."
 )
 
 st.markdown(
@@ -19,6 +19,11 @@ st.markdown(
 ### SLA Rules
 - APIs where **Feature starts with `AskAI`**: SLA is **< 10 sec**
 - All other APIs: SLA is **< 2 sec**
+
+### Track Comparison Buckets
+- **AskAI tracks**: `0-10s`, `10-20s`, `20-30s`, `>30s`
+- **Other tracks**: `0-2s`, `3-4s`, `4-6s`, `>6s`
+- Percentages are calculated using **API count**, not sample count.
 """
 )
 
@@ -50,7 +55,7 @@ if uploaded_files:
             else:
                 build_comparison_report(json_paths, labels, output_path)
                 st.success("Comparison report generated successfully.")
-                st.info("Comparison uses the first uploaded JSON as baseline and the last uploaded JSON as latest.")
+                st.info("Track_Comparison shows every uploaded run side-by-side. The first file is baseline and last file is latest for the raw Comparison sheet.")
 
             st.download_button(
                 label="Download Excel Report",
