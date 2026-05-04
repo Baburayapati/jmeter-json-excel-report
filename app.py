@@ -33,7 +33,7 @@ st.markdown(
         padding: 14px 20px;
         border-radius: 16px;
         box-shadow: 0 8px 24px rgba(21, 76, 121, 0.18);
-        font-size: 30px !important;
+        font-size: 28px !important;
         line-height: 1.25 !important;
     }
 
