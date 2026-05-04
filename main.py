@@ -72,7 +72,7 @@ def add_api_sla_columns(apis_df: pd.DataFrame) -> pd.DataFrame:
     apis_df = apis_df.copy()
     apis_df["SLA Sec"] = apis_df["Feature"].astype(str).str.upper().str.startswith("ASKAI").map({True: 10, False: 2})
     apis_df["SLA Rule"] = apis_df["SLA Sec"].map(
-        lambda x: "AskAI API SLA < 10 sec" if x == 10 else "Non-AskAI API SLA < 2 sec"
+        lambda x: "AskAI APIs SLA < 10 sec" if x == 10 else "Assets, Assessments, Home, Settings and Support APIs SLA < 2 sec"
     )
     apis_df["SLA Status"] = apis_df.apply(
         lambda row: "PASS"
@@ -213,7 +213,11 @@ def track_metric_values(df: pd.DataFrame, track: str, metric: str) -> List[Any]:
 
 def build_track_comparison_matrix(json_paths: List[str | Path], labels: List[str]) -> List[List[Any]]:
     prepared = [prepare_api_df_for_track(path) for path in json_paths]
-    all_tracks = sorted(set().union(*[set(df["Feature"].dropna().astype(str)) for df in prepared]))
+    all_tracks = sorted(
+        track
+        for track in set().union(*[set(df["Feature"].dropna().astype(str)) for df in prepared])
+        if "select customer" not in track.lower()
+    )
 
     # 2-row header: run label row, then bucket row.
     header_1 = ["Track", "Metric"]
@@ -355,35 +359,47 @@ def style_sheet(ws):
         width = min(max(max_len + 2, 12), 45)
         ws.column_dimensions[get_column_letter(col_idx)].width = width
 
-    # Highlight SLA status.
+    # Highlight only response-time cells that breach SLA in APIs sheet.
     headers = [cell.value for cell in ws[1]]
-    if "SLA Status" in headers:
-        status_col = headers.index("SLA Status") + 1
-        for row in range(2, ws.max_row + 1):
-            cell = ws.cell(row=row, column=status_col)
-            if cell.value == "PASS":
-                cell.fill = PatternFill("solid", fgColor="C6EFCE")
-                cell.font = Font(color="006100", bold=True)
-            elif cell.value == "FAIL":
-                cell.fill = PatternFill("solid", fgColor="FFC7CE")
-                cell.font = Font(color="9C0006", bold=True)
-
-    
-    # Enhanced SLA row-level highlighting
-    if "SLA Status" in headers:
-        status_col = headers.index("SLA Status") + 1
+    if ws.title == "APIs" and "SLA Sec" in headers:
+        sla_col = headers.index("SLA Sec") + 1
+        sla_status_col = headers.index("SLA Status") + 1 if "SLA Status" in headers else None
+        response_time_columns = [
+            "Avg ResTime in sec",
+            "Min ResTime in sec",
+            "MaxRes Time in sec",
+            "90thPercentile Resp Time in Sec",
+            "95thPercentile Resp Time in Sec",
+            "99thPercentile Resp Time in Sec",
+        ]
+        target_cols = [headers.index(col_name) + 1 for col_name in response_time_columns if col_name in headers]
 
         for row in range(2, ws.max_row + 1):
-            status = ws.cell(row=row, column=status_col).value
+            sla_value = ws.cell(row=row, column=sla_col).value
+            try:
+                sla_value = float(sla_value)
+            except (TypeError, ValueError):
+                continue
 
-            if status == "PASS":
-                for col in range(1, ws.max_column + 1):
-                    ws.cell(row=row, column=col).fill = PatternFill("solid", fgColor="E2F0D9")
+            for col in target_cols:
+                cell = ws.cell(row=row, column=col)
+                try:
+                    metric_value = float(cell.value)
+                except (TypeError, ValueError):
+                    continue
 
-            elif status == "FAIL":
-                for col in range(1, ws.max_column + 1):
-                    ws.cell(row=row, column=col).fill = PatternFill("solid", fgColor="FFC7CE")
-                    ws.cell(row=row, column=col).font = Font(color="9C0006", bold=True)
+                if metric_value >= sla_value:
+                    cell.fill = PatternFill("solid", fgColor="FFC7CE")
+                    cell.font = Font(color="9C0006", bold=True)
+
+            if sla_status_col:
+                status_cell = ws.cell(row=row, column=sla_status_col)
+                if status_cell.value == "PASS":
+                    status_cell.fill = PatternFill("solid", fgColor="C6EFCE")
+                    status_cell.font = Font(color="006100", bold=True)
+                elif status_cell.value == "FAIL":
+                    status_cell.fill = PatternFill("solid", fgColor="FFC7CE")
+                    status_cell.font = Font(color="9C0006", bold=True)
 
     # Highlight Max Seconds columns in Track_Comparison.
     if ws.title == "Track_Comparison":
@@ -474,7 +490,144 @@ def build_insights_sheet(ws, frames: Dict[str, pd.DataFrame]):
     bar.width = 15
     ws.add_chart(bar, "G18")
 
+    # Top 10 Error APIs table and chart.
+    err_start = 30
+    ws.cell(row=err_start, column=1, value="Top 10 Error APIs")
+    ws.cell(row=err_start, column=1).font = Font(bold=True, color="9C0006")
+    ws.cell(row=err_start + 1, column=1, value="API")
+    ws.cell(row=err_start + 1, column=2, value="Error Count")
+
+    top_errors = apis_df.copy()
+    top_errors["errorCount"] = pd.to_numeric(top_errors.get("errorCount", 0), errors="coerce").fillna(0)
+    top_errors = top_errors[top_errors["errorCount"] > 0].sort_values("errorCount", ascending=False).head(10)
+
+    if top_errors.empty:
+        ws.cell(row=err_start + 2, column=1, value="No API errors found")
+        ws.cell(row=err_start + 2, column=2, value=0)
+    else:
+        for idx, (_, row) in enumerate(top_errors.iterrows(), start=err_start + 2):
+            ws.cell(row=idx, column=1, value=f"{row.get('Feature','')}/{row.get('Scenario','')}/{row.get('Endpoint','')}")
+            ws.cell(row=idx, column=2, value=int(row.get("errorCount", 0)))
+
+        err_bar = BarChart()
+        err_bar.title = "Top 10 Error APIs"
+        err_bar.y_axis.title = "Error Count"
+        err_bar.x_axis.title = "API"
+        err_data = Reference(ws, min_col=2, min_row=err_start + 1, max_row=err_start + 1 + len(top_errors))
+        err_cats = Reference(ws, min_col=1, min_row=err_start + 2, max_row=err_start + 1 + len(top_errors))
+        err_bar.add_data(err_data, titles_from_data=True)
+        err_bar.set_categories(err_cats)
+        err_bar.height = 8
+        err_bar.width = 15
+        ws.add_chart(err_bar, "G35")
+
     style_sheet(ws)
+
+
+
+def add_track_comparison_charts(ws):
+    """
+    Add charts inside Track_Comparison.
+    For each uploaded run block, create a small helper table below the comparison table
+    showing top 10 tracks by slowest bucket percentage for Avg metric, then chart it.
+    """
+    if ws.max_row < 3 or ws.max_column < 7:
+        return
+
+    source_last_row = ws.max_row
+    source_last_col = ws.max_column
+
+    chart_start_row = source_last_row + 4
+    ws.cell(row=chart_start_row, column=1, value="Track Comparison Charts")
+    ws.cell(row=chart_start_row, column=1).font = Font(size=14, bold=True, color="1F4E78")
+
+    run_block_index = 0
+    col = 3
+
+    while col <= source_last_col:
+        run_label = ws.cell(row=1, column=col).value
+        if not run_label:
+            col += 1
+            continue
+
+        slow_bucket_col = col + 3
+        max_seconds_col = col + 4
+
+        avg_rows = []
+        current_track = None
+
+        for row in range(3, source_last_row + 1):
+            track_cell = ws.cell(row=row, column=1).value
+            metric = ws.cell(row=row, column=2).value
+
+            if track_cell not in (None, ""):
+                current_track = track_cell
+
+            if metric == "Avg" and current_track:
+                slow_pct = ws.cell(row=row, column=slow_bucket_col).value
+                max_seconds = ws.cell(row=row, column=max_seconds_col).value
+
+                try:
+                    slow_pct = float(slow_pct)
+                except Exception:
+                    slow_pct = 0.0
+
+                try:
+                    max_seconds = float(max_seconds)
+                except Exception:
+                    max_seconds = 0.0
+
+                avg_rows.append((current_track, slow_pct, max_seconds))
+
+        if not avg_rows:
+            col += 6
+            continue
+
+        avg_rows = sorted(avg_rows, key=lambda x: (x[1], x[2]), reverse=True)[:10]
+
+        # Create helper table for this run in its own column area.
+        table_col = 1 + (run_block_index * 5)
+        table_row = chart_start_row + 2
+
+        ws.cell(row=table_row, column=table_col, value=f"{run_label} - Top Slow Bucket %")
+        ws.cell(row=table_row, column=table_col).font = Font(bold=True, color="9C0006")
+
+        ws.cell(row=table_row + 1, column=table_col, value="Track")
+        ws.cell(row=table_row + 1, column=table_col + 1, value="Slow Bucket %")
+        ws.cell(row=table_row + 1, column=table_col + 2, value="Max Seconds")
+
+        for idx, (track, slow_pct, max_seconds) in enumerate(avg_rows, start=table_row + 2):
+            ws.cell(row=idx, column=table_col, value=track)
+            ws.cell(row=idx, column=table_col + 1, value=slow_pct)
+            ws.cell(row=idx, column=table_col + 2, value=max_seconds)
+
+        chart = BarChart()
+        chart.title = f"{run_label} - Top Slow Tracks"
+        chart.y_axis.title = "Slow Bucket %"
+        chart.x_axis.title = "Track"
+
+        data = Reference(
+            ws,
+            min_col=table_col + 1,
+            min_row=table_row + 1,
+            max_row=table_row + 11,
+        )
+        cats = Reference(
+            ws,
+            min_col=table_col,
+            min_row=table_row + 2,
+            max_row=table_row + 11,
+        )
+        chart.add_data(data, titles_from_data=True)
+        chart.set_categories(cats)
+        chart.height = 8
+        chart.width = 14
+
+        chart_anchor_col = get_column_letter(table_col)
+        ws.add_chart(chart, f"{chart_anchor_col}{table_row + 14}")
+
+        run_block_index += 1
+        col += 6
 
 
 def write_track_comparison_sheet(wb: Workbook, track_matrix: List[List[Any]]):
@@ -489,6 +642,7 @@ def write_track_comparison_sheet(wb: Workbook, track_matrix: List[List[Any]]):
             ws.merge_cells(start_row=1, start_column=col, end_row=1, end_column=col + 4)
         col += 6
 
+    add_track_comparison_charts(ws)
     style_sheet(ws)
 
 

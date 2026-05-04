@@ -2,6 +2,13 @@
 
 This Streamlit app converts JMeter static `statistics.json` files into Excel reports.
 
+
+## Final Refinements Included
+
+- `Insights` includes **Top 10 Error APIs** table and chart.
+- `APIs` highlights only response-time cells that breach SLA, not the full row.
+- `Track_Comparison` excludes any track containing `Select customer`.
+
 ## Output Sheets
 
 - `Insights` - KPI summary and charts
@@ -46,7 +53,7 @@ Each uploaded JSON file appears as a side-by-side block with:
 ## SLA Logic
 
 - AskAI Feature: SLA `< 10 sec`
-- Non-AskAI Feature: SLA `< 2 sec`
+- Assets, Assessments, Home, Settings and Support Features: SLA `< 2 sec`
 
 PASS/FAIL in the `APIs` sheet is based on Avg Response Time in seconds.
 
@@ -77,3 +84,10 @@ streamlit run app.py
 2. Upload one JSON for normal report.
 3. Upload two or more JSONs for side-by-side comparison.
 4. Download Excel.
+
+
+## Latest v13 Updates
+
+- Streamlit UI wording updated for SLA rules and track buckets.
+- `Track_Comparison` now includes embedded charts for top slow tracks.
+- API percentage calculation remains API-count based.

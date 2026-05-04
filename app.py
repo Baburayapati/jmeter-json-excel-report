@@ -17,13 +17,12 @@ st.write(
 st.markdown(
     """
 ### SLA Rules
-- APIs where **Feature starts with `AskAI`**: SLA is **< 10 sec**
-- All other APIs: SLA is **< 2 sec**
+- **AskAI APIs**: SLA is **< 10 sec**
+- **Assets, Assessments, Home, Settings and Support APIs**: SLA is **< 2 sec**
 
 ### Track Comparison Buckets
 - **AskAI tracks**: `0-10s`, `10-20s`, `20-30s`, `>30s`
-- **Other tracks**: `0-2s`, `3-4s`, `4-6s`, `>6s`
-- Percentages are calculated using **API count**, not sample count.
+- **Assets, Assessments, Home, Settings and Support tracks**: `0-2s`, `3-4s`, `4-6s`, `>6s`
 """
 )
 
